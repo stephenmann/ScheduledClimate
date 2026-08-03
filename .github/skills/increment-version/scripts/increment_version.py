@@ -92,9 +92,22 @@ def _next_version(current: str, component: str) -> str:
     return f"{major}.{minor}.{patch}"
 
 
-def _write_json(path: Path, value: dict[str, object]) -> None:
-    """Write consistently formatted JSON."""
-    path.write_text(json.dumps(value, indent=2) + "\n", encoding="utf-8")
+def _replace_json_versions(
+    path: Path, current: str, new: str, *, count: int = 1
+) -> None:
+    """Replace root JSON version fields without reformatting the file."""
+    text = path.read_text(encoding="utf-8")
+    pattern = re.compile(
+        rf'(?m)^(\s+"version"\s*:\s*"){re.escape(current)}(",?)$'
+    )
+    updated, replacements = pattern.subn(
+        lambda match: f"{match.group(1)}{new}{match.group(2)}",
+        text,
+        count=count,
+    )
+    if replacements != count:
+        raise ValueError(f"Expected {count} version field(s) in {path}")
+    path.write_text(updated, encoding="utf-8")
 
 
 def increment_version(root: Path, component: str, dry_run: bool = False) -> str:
@@ -124,24 +137,13 @@ def increment_version(root: Path, component: str, dry_run: bool = False) -> str:
     manifest_path = (
         root / "custom_components" / "scheduled_climate" / "manifest.json"
     )
-    manifest = _load_json(manifest_path)
-    manifest["version"] = new_version
-    _write_json(manifest_path, manifest)
+    _replace_json_versions(manifest_path, current, new_version)
 
     package_path = root / "frontend" / "package.json"
-    package = _load_json(package_path)
-    package["version"] = new_version
-    _write_json(package_path, package)
+    _replace_json_versions(package_path, current, new_version)
 
     lock_path = root / "frontend" / "package-lock.json"
-    lock = _load_json(lock_path)
-    lock["version"] = new_version
-    lock_packages = lock["packages"]
-    assert isinstance(lock_packages, dict)
-    lock_root = lock_packages[""]
-    assert isinstance(lock_root, dict)
-    lock_root["version"] = new_version
-    _write_json(lock_path, lock)
+    _replace_json_versions(lock_path, current, new_version, count=2)
 
     updated_versions = _current_versions(root, include_generated=False)
     if set(updated_versions.values()) != {new_version}:

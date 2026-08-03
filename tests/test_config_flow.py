@@ -7,11 +7,21 @@ from homeassistant.const import CONF_NAME
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.helpers import entity_registry as er
+from homeassistant.loader import async_get_integration
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.scheduled_climate.const import CONF_TARGET_ENTITY_ID, DOMAIN
 
 TARGET_ENTITY_ID = "climate.living_room"
+
+
+async def test_integration_is_visible_on_integrations_dashboard(
+    hass: HomeAssistant,
+) -> None:
+    """Test the integration is not classified as a hidden helper."""
+    integration = await async_get_integration(hass, DOMAIN)
+
+    assert integration.integration_type == "service"
 
 
 async def _start_user_flow(hass: HomeAssistant) -> config_entries.ConfigFlowResult:
