@@ -1,6 +1,6 @@
 [project]
 name = "scheduled-climate"
-version = "0.1.0"
+version = "0.1.1"
 requires-python = ">=3.13"
 dependencies = ["homeassistant>=2025.1.0"]
 
@@ -9,6 +9,9 @@ test = [
   "pytest-homeassistant-custom-component>=0.13.200",
   "pytest-cov>=6.0",
 ]
+
+[tool.setuptools]
+packages = []
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
