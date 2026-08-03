@@ -1,0 +1,58 @@
+{
+  "title": "Scheduled Climate",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Add Scheduled Climate",
+        "description": "Select the climate entity to control.",
+        "data": {
+          "name": "Name",
+          "target_entity_id": "Climate entity"
+        }
+      },
+      "reconfigure": {
+        "title": "Reconfigure Scheduled Climate",
+        "description": "Select the climate entity to control.",
+        "data": {
+          "name": "Name",
+          "target_entity_id": "Climate entity"
+        }
+      }
+    },
+    "error": {
+      "target_already_configured": "This climate entity is already configured",
+      "target_is_scheduled_climate": "Select a climate entity that is not managed by Scheduled Climate",
+      "target_not_found": "The selected climate entity does not exist"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Daily schedule",
+        "description": "Configure recurring daily on and off actions.",
+        "data": {
+          "schedule_enabled": "Enable daily schedule",
+          "on_time": "On time",
+          "off_time": "Off time",
+          "default_hvac_mode": "Default on mode"
+        }
+      }
+    },
+    "error": {
+      "schedule_time_required": "Set at least one action time before enabling the schedule",
+      "schedule_times_equal": "On and off times must be different"
+    }
+  },
+  "selector": {
+    "hvac_mode": {
+      "options": {
+        "auto": "Auto",
+        "cool": "Cool",
+        "dry": "Dry",
+        "fan_only": "Fan only",
+        "heat": "Heat",
+        "heat_cool": "Heat/Cool"
+      }
+    }
+  }
+}

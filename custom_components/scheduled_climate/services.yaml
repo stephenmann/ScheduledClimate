@@ -1,0 +1,63 @@
+start_on_timer:
+  name: Start on timer
+  description: Starts or replaces a timer that turns the climate entity on.
+  target:
+    entity:
+      integration: scheduled_climate
+      domain: climate
+  fields:
+    duration:
+      name: Duration
+      description: Time to wait before turning the climate entity on.
+      required: true
+      selector:
+        duration:
+
+start_off_timer:
+  name: Start off timer
+  description: Starts or replaces a timer that turns the climate entity off.
+  target:
+    entity:
+      integration: scheduled_climate
+      domain: climate
+  fields:
+    duration:
+      name: Duration
+      description: Time to wait before turning the climate entity off.
+      required: true
+      selector:
+        duration:
+
+cancel_timer:
+  name: Cancel timer
+  description: Cancels the active timer for the climate entity.
+  target:
+    entity:
+      integration: scheduled_climate
+      domain: climate
+
+update_schedule:
+  name: Update daily schedule
+  description: Updates the enabled state and daily on and off times atomically.
+  target:
+    entity:
+      integration: scheduled_climate
+      domain: climate
+  fields:
+    schedule_enabled:
+      name: Enabled
+      required: true
+      selector:
+        boolean:
+    on_time:
+      name: On time
+      description: Daily time to turn the climate entity on, or null to clear it.
+      required: true
+      selector:
+        time:
+    off_time:
+      name: Off time
+      description: Daily time to turn the climate entity off, or null to clear it.
+      required: true
+      selector:
+        time:

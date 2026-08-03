@@ -1,0 +1,5 @@
+homeassistant>=2025.1.0
+
+[test]
+pytest-homeassistant-custom-component>=0.13.200
+pytest-cov>=6.0

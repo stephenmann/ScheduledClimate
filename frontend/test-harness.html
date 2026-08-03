@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Scheduled Climate Card Harness</title>
+    <style>
+      :root {
+        --primary-color: #147d64;
+        --primary-text-color: #202522;
+        --secondary-text-color: #65706a;
+        --text-primary-color: #fff;
+        --card-background-color: #fff;
+        --divider-color: #d9dfdc;
+        --ha-card-border-radius: 8px;
+      }
+      body { margin: 0; padding: 24px; background: #edf1ef; font-family: "Segoe UI", sans-serif; }
+      scheduled-climate-card { display: block; width: min(100%, 520px); margin: 0 auto; }
+      ha-card { display: block; background: var(--card-background-color); box-shadow: 0 2px 10px rgb(31 42 37 / 12%); }
+      ha-icon { display: inline-block; width: 20px; height: 20px; }
+      @media (max-width: 540px) { body { padding: 10px; } }
+    </style>
+  </head>
+  <body>
+    <scheduled-climate-card id="card"></scheduled-climate-card>
+    <script type="module">
+      import "../custom_components/scheduled_climate/frontend/scheduled-climate-card.js";
+
+      const calls = [];
+      const card = document.querySelector("#card");
+      card.setConfig({
+        type: "custom:scheduled-climate-card",
+        entity: "climate.living_room_scheduled",
+        timer_presets: [15, 30, 60, 120],
+      });
+      card.hass = {
+        states: {
+          "climate.living_room_scheduled": {
+            entity_id: "climate.living_room_scheduled",
+            state: "heat",
+            attributes: {
+              friendly_name: "Living room",
+              current_temperature: 20.5,
+              target_temp_low: 19,
+              target_temp_high: 23,
+              unit_of_measurement: "°C",
+              min_temp: 7,
+              max_temp: 35,
+              target_temp_step: 0.5,
+              hvac_action: "heating",
+              hvac_modes: ["off", "heat", "cool", "auto"],
+              preset_mode: "home",
+              preset_modes: ["home", "away", "eco"],
+              fan_mode: "auto",
+              fan_modes: ["auto", "low", "high"],
+              swing_mode: "off",
+              swing_modes: ["off", "vertical"],
+              swing_horizontal_mode: "off",
+              swing_horizontal_modes: ["off", "on"],
+              current_humidity: 43,
+              humidity: 45,
+              min_humidity: 30,
+              max_humidity: 70,
+              schedule_enabled: true,
+              schedule_on_time: "06:30:00",
+              schedule_off_time: "22:00:00",
+              next_schedule_action: "off",
+              next_schedule_time: "2026-08-03T22:00:00-04:00",
+              timer_action: "off",
+              timer_deadline: "2026-08-03T18:15:00Z",
+            },
+          },
+        },
+        callService: async (...args) => { calls.push(args); },
+      };
+      window.harnessCalls = calls;
+    </script>
+  </body>
+</html>

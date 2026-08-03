@@ -1,0 +1,14 @@
+{
+  "domain": "scheduled_climate",
+  "name": "Scheduled Climate",
+  "after_dependencies": ["frontend"],
+  "codeowners": ["@stephen"],
+  "config_flow": true,
+  "dependencies": ["http"],
+  "documentation": "https://github.com/stephen/ScheduledClimate",
+  "integration_type": "helper",
+  "iot_class": "calculated",
+  "issue_tracker": "https://github.com/stephen/ScheduledClimate/issues",
+  "requirements": [],
+  "version": "0.1.0"
+}
