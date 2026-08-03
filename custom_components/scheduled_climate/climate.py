@@ -314,6 +314,9 @@ class ScheduledClimateEntity(ClimateEntity):
         off_time: time | None,
     ) -> None:
         """Persist an atomic daily schedule update."""
+        if not schedule_enabled:
+            on_time = None
+            off_time = None
         if schedule_enabled and on_time is None and off_time is None:
             raise ServiceValidationError(
                 "An enabled schedule requires an on time or off time"

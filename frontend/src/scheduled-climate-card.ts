@@ -90,8 +90,8 @@ export class ScheduledClimateCard extends LitElement {
     domain: string,
     service: string,
     data: Record<string, unknown> = {},
-  ): Promise<void> {
-    if (!this.hass || !this._config || this._busy) return;
+  ): Promise<boolean> {
+    if (!this.hass || !this._config || this._busy) return false;
     this._busy = true;
     this._message = "";
     try {
@@ -100,8 +100,10 @@ export class ScheduledClimateCard extends LitElement {
         ...data,
       });
       this._message = "Saved";
+      return true;
     } catch (error) {
       this._message = error instanceof Error ? error.message : "Command failed";
+      return false;
     } finally {
       this._busy = false;
     }
@@ -262,8 +264,12 @@ export class ScheduledClimateCard extends LitElement {
   }
 
   private _renderSchedule(state: HassEntity) {
-    const nextAction = state.attributes.next_schedule_action;
-    const nextTime = state.attributes.next_schedule_time;
+    const nextAction = this._scheduleEnabled
+      ? state.attributes.next_schedule_action
+      : null;
+    const nextTime = this._scheduleEnabled
+      ? state.attributes.next_schedule_time
+      : null;
     return html`
       <section aria-labelledby="schedule-heading">
         <div class="section-heading">
@@ -275,8 +281,11 @@ export class ScheduledClimateCard extends LitElement {
             <input
               type="checkbox"
               .checked=${this._scheduleEnabled}
+              ?disabled=${this._busy}
               @change=${(event: Event) =>
-                (this._scheduleEnabled = (event.target as HTMLInputElement).checked)}
+                this._scheduleEnabledChanged(
+                  (event.target as HTMLInputElement).checked,
+                )}
             />
             <span>Enabled</span>
           </label>
@@ -292,6 +301,27 @@ export class ScheduledClimateCard extends LitElement {
         </div>
       </section>
     `;
+  }
+
+  private async _scheduleEnabledChanged(enabled: boolean): Promise<void> {
+    const previousOnTime = this._onTime;
+    const previousOffTime = this._offTime;
+    this._scheduleEnabled = enabled;
+    if (enabled) return;
+
+    this._onTime = "";
+    this._offTime = "";
+    if (
+      !(await this._call("scheduled_climate", "update_schedule", {
+        schedule_enabled: false,
+        on_time: null,
+        off_time: null,
+      }))
+    ) {
+      this._scheduleEnabled = true;
+      this._onTime = previousOnTime;
+      this._offTime = previousOffTime;
+    }
   }
 
   private _renderTimer(state: HassEntity) {

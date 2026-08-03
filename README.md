@@ -35,6 +35,8 @@ The card derives all schedule and timer state from the wrapper entity. It displa
 
 Configure a daily on time, off time, or both from the integration options or card. The on action restores the most recently active supported HVAC mode, falling back to the configured default. The schedule uses Home Assistant local time and handles daylight-saving gaps and repeated times.
 
+Disabling the schedule immediately cancels its callbacks and clears both configured action times. Set new times before enabling it again.
+
 Day-of-week selection is planned but is not available yet.
 
 ## Timers

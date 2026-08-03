@@ -74,6 +74,41 @@ async def test_options_flow_saves_schedule(hass: HomeAssistant) -> None:
     }
 
 
+async def test_options_flow_disable_clears_schedule(hass: HomeAssistant) -> None:
+    """Test disabling removes existing daily action times."""
+    hass.states.async_set(
+        TARGET_ENTITY_ID,
+        HVACMode.HEAT,
+        {ATTR_HVAC_MODES: [HVACMode.OFF, HVACMode.HEAT]},
+    )
+    entry = _entry(
+        {
+            CONF_SCHEDULE_ENABLED: True,
+            CONF_ON_TIME: "06:30:00",
+            CONF_OFF_TIME: "22:00:00",
+            CONF_DEFAULT_HVAC_MODE: HVACMode.HEAT,
+        }
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {
+            CONF_SCHEDULE_ENABLED: False,
+            CONF_ON_TIME: "08:00:00",
+            CONF_OFF_TIME: "08:00:00",
+            CONF_DEFAULT_HVAC_MODE: HVACMode.HEAT,
+        },
+    )
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"] == {
+        CONF_SCHEDULE_ENABLED: False,
+        CONF_DEFAULT_HVAC_MODE: HVACMode.HEAT,
+    }
+
+
 async def test_options_flow_validates_schedule(hass: HomeAssistant) -> None:
     """Test schedule option validation."""
     hass.states.async_set(

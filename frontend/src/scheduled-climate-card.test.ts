@@ -121,6 +121,66 @@ describe("scheduled-climate-card", () => {
     );
   });
 
+  it("disables and clears the schedule immediately", async () => {
+    const { card, callService } = await renderCard(
+      state({ next_schedule_action: "off", next_schedule_time: "2026-08-03T22:00:00Z" }),
+    );
+    const checkbox = card.shadowRoot!.querySelector<HTMLInputElement>(
+      'input[type="checkbox"]',
+    )!;
+
+    checkbox.checked = false;
+    checkbox.dispatchEvent(new Event("change"));
+
+    await vi.waitFor(() =>
+      expect(callService).toHaveBeenCalledWith(
+        "scheduled_climate",
+        "update_schedule",
+        {
+          entity_id: ENTITY_ID,
+          schedule_enabled: false,
+          on_time: null,
+          off_time: null,
+        },
+      ),
+    );
+    await card.updateComplete;
+
+    const timeInputs = card.shadowRoot!.querySelectorAll<HTMLInputElement>(
+      'input[type="time"]',
+    );
+    expect([...timeInputs].map((input) => input.value)).toEqual(["", ""]);
+    expect(card.shadowRoot!.textContent).toContain("No action scheduled");
+    expect(card.shadowRoot!.textContent).not.toContain("Next off");
+  });
+
+  it("restores the schedule UI when disabling fails", async () => {
+    const errorCall = vi.fn().mockRejectedValue(new Error("Disable failed"));
+    const { card } = await renderCard(state(), errorCall);
+    const checkbox = card.shadowRoot!.querySelector<HTMLInputElement>(
+      'input[type="checkbox"]',
+    )!;
+
+    checkbox.checked = false;
+    checkbox.dispatchEvent(new Event("change"));
+
+    await vi.waitFor(() =>
+      expect(card.shadowRoot!.querySelector('[role="status"]')?.textContent).toBe(
+        "Disable failed",
+      ),
+    );
+    await card.updateComplete;
+
+    const restoredCheckbox = card.shadowRoot!.querySelector<HTMLInputElement>(
+      'input[type="checkbox"]',
+    )!;
+    const timeInputs = card.shadowRoot!.querySelectorAll<HTMLInputElement>(
+      'input[type="time"]',
+    );
+    expect(restoredCheckbox.checked).toBe(true);
+    expect([...timeInputs].map((input) => input.value)).toEqual(["06:30", "22:00"]);
+  });
+
   it("shows service failures and unavailable state", async () => {
     const errorCall = vi.fn().mockRejectedValue(new Error("Service unavailable"));
     const { card } = await renderCard(state(), errorCall);

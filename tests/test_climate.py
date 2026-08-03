@@ -270,6 +270,66 @@ async def test_update_schedule_service_persists_options(
     assert entry.options[CONF_OFF_TIME] == "22:00:00"
 
 
+async def test_disabling_schedule_clears_times_and_next_action(
+    hass: HomeAssistant,
+) -> None:
+    """Test disabling clears configuration and active schedule state."""
+    hass.states.async_set(
+        TARGET_ENTITY_ID,
+        HVACMode.HEAT,
+        {
+            ATTR_HVAC_MODES: [HVACMode.OFF, HVACMode.HEAT],
+            ATTR_TEMPERATURE_UNIT: UnitOfTemperature.CELSIUS,
+        },
+    )
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Living Room",
+        data={CONF_TARGET_ENTITY_ID: TARGET_ENTITY_ID, "name": "Living Room"},
+        options={
+            CONF_SCHEDULE_ENABLED: True,
+            CONF_ON_TIME: "06:30:00",
+            CONF_OFF_TIME: "22:00:00",
+        },
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    wrapper = next(
+        entity
+        for entity in er.async_get(hass).entities.values()
+        if entity.config_entry_id == entry.entry_id
+    )
+
+    await hass.services.async_call(
+        DOMAIN,
+        SERVICE_UPDATE_SCHEDULE,
+        {
+            ATTR_ENTITY_ID: wrapper.entity_id,
+            CONF_SCHEDULE_ENABLED: False,
+            CONF_ON_TIME: "06:30:00",
+            CONF_OFF_TIME: "22:00:00",
+        },
+        blocking=True,
+    )
+    await hass.async_block_till_done()
+
+    assert entry.options == {CONF_SCHEDULE_ENABLED: False}
+    manager: ScheduleManager = hass.data[DOMAIN][entry.entry_id]
+    assert manager.enabled is False
+    assert manager.on_time is None
+    assert manager.off_time is None
+    assert manager.next_action is None
+    assert manager._unsubscribers == []
+    state = hass.states.get(wrapper.entity_id)
+    assert state is not None
+    assert state.attributes[ATTR_SCHEDULE_ENABLED] is False
+    assert state.attributes[ATTR_SCHEDULE_ON_TIME] is None
+    assert state.attributes[ATTR_SCHEDULE_OFF_TIME] is None
+    assert state.attributes[ATTR_NEXT_SCHEDULE_ACTION] is None
+    assert state.attributes[ATTR_NEXT_SCHEDULE_TIME] is None
+
+
 async def test_update_schedule_rejects_enabled_without_times(
     hass: HomeAssistant,
 ) -> None:

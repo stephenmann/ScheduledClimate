@@ -145,7 +145,11 @@ class ScheduledClimateOptionsFlow(config_entries.OptionsFlow):
             enabled = user_input[CONF_SCHEDULE_ENABLED]
             on_time = user_input.get(CONF_ON_TIME)
             off_time = user_input.get(CONF_OFF_TIME)
-            if enabled and not on_time and not off_time:
+            if not enabled:
+                user_input.pop(CONF_ON_TIME, None)
+                user_input.pop(CONF_OFF_TIME, None)
+                return self.async_create_entry(data=user_input)
+            if not on_time and not off_time:
                 errors["base"] = "schedule_time_required"
             elif on_time and off_time and on_time == off_time:
                 errors["base"] = "schedule_times_equal"
