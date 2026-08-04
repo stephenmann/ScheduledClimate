@@ -1,6 +1,11 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ScheduledClimateCard } from "./scheduled-climate-card";
-import type { HassEntity, HomeAssistant } from "./types";
+import { ScheduledClimateCardEditor } from "./scheduled-climate-card-editor";
+import type {
+  HassEntity,
+  HomeAssistant,
+  ScheduledClimateCardConfig,
+} from "./types";
 
 const ENTITY_ID = "climate.living_room_scheduled";
 
@@ -56,8 +61,24 @@ function button(card: ScheduledClimateCard, label: string): HTMLButtonElement {
   return match;
 }
 
+function collapseButton(
+  card: ScheduledClimateCard,
+  section: string,
+): HTMLButtonElement {
+  const match = card.shadowRoot!.querySelector<HTMLButtonElement>(
+    `button[aria-controls="${section}-controls"]`,
+  );
+  if (!match) throw new Error(`Collapse button not found: ${section}`);
+  return match;
+}
+
+beforeEach(() => {
+  localStorage.clear();
+});
+
 afterEach(() => {
   document.body.replaceChildren();
+  localStorage.clear();
 });
 
 describe("scheduled-climate-card", () => {
@@ -96,6 +117,71 @@ describe("scheduled-climate-card", () => {
     );
   });
 
+  it("renders compact mode without a dial and keeps touch controls", async () => {
+    const callService = vi.fn().mockResolvedValue(undefined);
+    const card = new ScheduledClimateCard();
+    card.setConfig({
+      type: "custom:scheduled-climate-card",
+      entity: ENTITY_ID,
+      layout: "compact",
+    });
+    card.hass = {
+      states: { [ENTITY_ID]: state() },
+      callService,
+    } as HomeAssistant;
+    document.body.append(card);
+    await card.updateComplete;
+
+    expect(card.shadowRoot!.querySelector("ha-card")?.classList).toContain(
+      "compact",
+    );
+    expect(card.shadowRoot!.querySelector(".thermostat")).toBeNull();
+    expect(card.shadowRoot!.querySelector(".dial-ring")).toBeNull();
+    expect(card.shadowRoot!.querySelector(".compact-status")?.textContent).toContain(
+      "21°",
+    );
+
+    card.shadowRoot!
+      .querySelector<HTMLButtonElement>('button[aria-label="Decrease low"]')!
+      .click();
+    await vi.waitFor(() =>
+      expect(callService).toHaveBeenCalledWith("climate", "set_temperature", {
+        entity_id: ENTITY_ID,
+        target_temp_low: 18.5,
+        target_temp_high: 23,
+      }),
+    );
+  });
+
+  it("selects compact mode in the visual editor", async () => {
+    const editor = new ScheduledClimateCardEditor();
+    const config: ScheduledClimateCardConfig = {
+      type: "custom:scheduled-climate-card",
+      entity: ENTITY_ID,
+    };
+    editor.setConfig(config);
+    editor.hass = {
+      states: { [ENTITY_ID]: state() },
+      callService: vi.fn(),
+    } as HomeAssistant;
+    const listener = vi.fn();
+    editor.addEventListener("config-changed", listener);
+    document.body.append(editor);
+    await editor.updateComplete;
+
+    const layout = editor.shadowRoot!.querySelector<HTMLSelectElement>(
+      'select[name="layout"]',
+    )!;
+    expect(layout.value).toBe("standard");
+    layout.value = "compact";
+    layout.dispatchEvent(new Event("change"));
+
+    expect(listener).toHaveBeenCalledOnce();
+    expect((listener.mock.calls[0][0] as CustomEvent).detail.config.layout).toBe(
+      "compact",
+    );
+  });
+
   it("opens native more information for the configured entity", async () => {
     const { card } = await renderCard();
     const listener = vi.fn();
@@ -107,6 +193,60 @@ describe("scheduled-climate-card", () => {
     expect((listener.mock.calls[0][0] as CustomEvent).detail).toEqual({
       entityId: ENTITY_ID,
     });
+  });
+
+  it("persists independent collapse state for each entity", async () => {
+    const { card } = await renderCard(
+      state({
+        preset_mode: "home",
+        preset_modes: ["home", "away"],
+      }),
+    );
+
+    for (const section of ["preset", "schedule", "timer"]) {
+      collapseButton(card, section).click();
+      await card.updateComplete;
+      expect(collapseButton(card, section).getAttribute("aria-expanded")).toBe(
+        "false",
+      );
+      expect(
+        card.shadowRoot!.querySelector<HTMLElement>(`#${section}-controls`)!.hidden,
+      ).toBe(true);
+    }
+
+    card.remove();
+    const restored = await renderCard(
+      state({
+        preset_mode: "home",
+        preset_modes: ["home", "away"],
+      }),
+    );
+    for (const section of ["preset", "schedule", "timer"]) {
+      expect(collapseButton(restored.card, section).getAttribute("aria-expanded")).toBe(
+        "false",
+      );
+    }
+
+    const otherCard = new ScheduledClimateCard();
+    otherCard.setConfig({
+      type: "custom:scheduled-climate-card",
+      entity: "climate.bedroom_scheduled",
+    });
+    otherCard.hass = {
+      ...restored.card.hass!,
+      states: {
+        ...restored.card.hass!.states,
+        "climate.bedroom_scheduled": {
+          ...state(),
+          entity_id: "climate.bedroom_scheduled",
+        },
+      },
+    };
+    document.body.append(otherCard);
+    await otherCard.updateComplete;
+    expect(collapseButton(otherCard, "preset").getAttribute("aria-expanded")).toBe(
+      "true",
+    );
   });
 
   it("dispatches schedule and timer services", async () => {

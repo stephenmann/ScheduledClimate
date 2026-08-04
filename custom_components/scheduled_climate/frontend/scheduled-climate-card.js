@@ -1,4 +1,4 @@
-const z = globalThis, V = z.ShadowRoot && (z.ShadyCSS === void 0 || z.ShadyCSS.nativeShadow) && "adoptedStyleSheets" in Document.prototype && "replace" in CSSStyleSheet.prototype, B = /* @__PURE__ */ Symbol(), Z = /* @__PURE__ */ new WeakMap();
+const z = globalThis, V = z.ShadowRoot && (z.ShadyCSS === void 0 || z.ShadyCSS.nativeShadow) && "adoptedStyleSheets" in Document.prototype && "replace" in CSSStyleSheet.prototype, B = /* @__PURE__ */ Symbol(), F = /* @__PURE__ */ new WeakMap();
 let rt = class {
   constructor(t, e, i) {
     if (this._$cssResult$ = !0, i !== B) throw Error("CSSResult is not constructable. Use `unsafeCSS` or `css` instead.");
@@ -9,7 +9,7 @@ let rt = class {
     const e = this.t;
     if (V && t === void 0) {
       const i = e !== void 0 && e.length === 1;
-      i && (t = Z.get(e)), t === void 0 && ((this.o = t = new CSSStyleSheet()).replaceSync(this.cssText), i && Z.set(e, t));
+      i && (t = F.get(e)), t === void 0 && ((this.o = t = new CSSStyleSheet()).replaceSync(this.cssText), i && F.set(e, t));
     }
     return t;
   }
@@ -17,11 +17,11 @@ let rt = class {
     return this.cssText;
   }
 };
-const dt = (o) => new rt(typeof o == "string" ? o : o + "", void 0, B), ot = (o, ...t) => {
-  const e = o.length === 1 ? o[0] : t.reduce((i, s, r) => i + ((n) => {
-    if (n._$cssResult$ === !0) return n.cssText;
-    if (typeof n == "number") return n;
-    throw Error("Value passed to 'css' function must be a 'css' function result: " + n + ". Use 'unsafeCSS' to pass non-literal values, but take care to ensure page security.");
+const ht = (o) => new rt(typeof o == "string" ? o : o + "", void 0, B), ot = (o, ...t) => {
+  const e = o.length === 1 ? o[0] : t.reduce((i, s, r) => i + ((a) => {
+    if (a._$cssResult$ === !0) return a.cssText;
+    if (typeof a == "number") return a;
+    throw Error("Value passed to 'css' function must be a 'css' function result: " + a + ". Use 'unsafeCSS' to pass non-literal values, but take care to ensure page security.");
   })(s) + o[r + 1], o[0]);
   return new rt(e, o, B);
 }, pt = (o, t) => {
@@ -33,9 +33,9 @@ const dt = (o) => new rt(typeof o == "string" ? o : o + "", void 0, B), ot = (o,
 }, J = V ? (o) => o : (o) => o instanceof CSSStyleSheet ? ((t) => {
   let e = "";
   for (const i of t.cssRules) e += i.cssText;
-  return dt(e);
+  return ht(e);
 })(o) : o;
-const { is: ut, defineProperty: mt, getOwnPropertyDescriptor: _t, getOwnPropertyNames: gt, getOwnPropertySymbols: ft, getPrototypeOf: $t } = Object, N = globalThis, K = N.trustedTypes, bt = K ? K.emptyScript : "", vt = N.reactiveElementPolyfillSupport, E = (o, t) => o, j = { toAttribute(o, t) {
+const { is: ut, defineProperty: mt, getOwnPropertyDescriptor: _t, getOwnPropertyNames: gt, getOwnPropertySymbols: ft, getPrototypeOf: $t } = Object, H = globalThis, Z = H.trustedTypes, bt = Z ? Z.emptyScript : "", vt = H.reactiveElementPolyfillSupport, E = (o, t) => o, j = { toAttribute(o, t) {
   switch (t) {
     case Boolean:
       o = o ? bt : null;
@@ -63,8 +63,8 @@ const { is: ut, defineProperty: mt, getOwnPropertyDescriptor: _t, getOwnProperty
       }
   }
   return e;
-} }, nt = (o, t) => !ut(o, t), G = { attribute: !0, type: String, converter: j, reflect: !1, useDefault: !1, hasChanged: nt };
-Symbol.metadata ??= /* @__PURE__ */ Symbol("metadata"), N.litPropertyMetadata ??= /* @__PURE__ */ new WeakMap();
+} }, at = (o, t) => !ut(o, t), G = { attribute: !0, type: String, converter: j, reflect: !1, useDefault: !1, hasChanged: at };
+Symbol.metadata ??= /* @__PURE__ */ Symbol("metadata"), H.litPropertyMetadata ??= /* @__PURE__ */ new WeakMap();
 let v = class extends HTMLElement {
   static addInitializer(t) {
     this._$Ei(), (this.l ??= []).push(t);
@@ -81,12 +81,12 @@ let v = class extends HTMLElement {
   static getPropertyDescriptor(t, e, i) {
     const { get: s, set: r } = _t(this.prototype, t) ?? { get() {
       return this[e];
-    }, set(n) {
-      this[e] = n;
+    }, set(a) {
+      this[e] = a;
     } };
-    return { get: s, set(n) {
-      const h = s?.call(this);
-      r?.call(this, n), this.requestUpdate(t, h, i);
+    return { get: s, set(a) {
+      const c = s?.call(this);
+      r?.call(this, a), this.requestUpdate(t, c, i);
     }, configurable: !0, enumerable: !0 };
   }
   static getPropertyOptions(t) {
@@ -169,22 +169,22 @@ let v = class extends HTMLElement {
   _$AK(t, e) {
     const i = this.constructor, s = i._$Eh.get(t);
     if (s !== void 0 && this._$Em !== s) {
-      const r = i.getPropertyOptions(s), n = typeof r.converter == "function" ? { fromAttribute: r.converter } : r.converter?.fromAttribute !== void 0 ? r.converter : j;
+      const r = i.getPropertyOptions(s), a = typeof r.converter == "function" ? { fromAttribute: r.converter } : r.converter?.fromAttribute !== void 0 ? r.converter : j;
       this._$Em = s;
-      const h = n.fromAttribute(e, r.type);
-      this[s] = h ?? this._$Ej?.get(s) ?? h, this._$Em = null;
+      const c = a.fromAttribute(e, r.type);
+      this[s] = c ?? this._$Ej?.get(s) ?? c, this._$Em = null;
     }
   }
   requestUpdate(t, e, i, s = !1, r) {
     if (t !== void 0) {
-      const n = this.constructor;
-      if (s === !1 && (r = this[t]), i ??= n.getPropertyOptions(t), !((i.hasChanged ?? nt)(r, e) || i.useDefault && i.reflect && r === this._$Ej?.get(t) && !this.hasAttribute(n._$Eu(t, i)))) return;
+      const a = this.constructor;
+      if (s === !1 && (r = this[t]), i ??= a.getPropertyOptions(t), !((i.hasChanged ?? at)(r, e) || i.useDefault && i.reflect && r === this._$Ej?.get(t) && !this.hasAttribute(a._$Eu(t, i)))) return;
       this.C(t, e, i);
     }
     this.isUpdatePending === !1 && (this._$ES = this._$EP());
   }
-  C(t, e, { useDefault: i, reflect: s, wrapped: r }, n) {
-    i && !(this._$Ej ??= /* @__PURE__ */ new Map()).has(t) && (this._$Ej.set(t, n ?? e ?? this[t]), r !== !0 || n !== void 0) || (this._$AL.has(t) || (this.hasUpdated || i || (e = void 0), this._$AL.set(t, e)), s === !0 && this._$Em !== t && (this._$Eq ??= /* @__PURE__ */ new Set()).add(t));
+  C(t, e, { useDefault: i, reflect: s, wrapped: r }, a) {
+    i && !(this._$Ej ??= /* @__PURE__ */ new Map()).has(t) && (this._$Ej.set(t, a ?? e ?? this[t]), r !== !0 || a !== void 0) || (this._$AL.has(t) || (this.hasUpdated || i || (e = void 0), this._$AL.set(t, e)), s === !0 && this._$Em !== t && (this._$Eq ??= /* @__PURE__ */ new Set()).add(t));
   }
   async _$EP() {
     this.isUpdatePending = !0;
@@ -208,8 +208,8 @@ let v = class extends HTMLElement {
       }
       const i = this.constructor.elementProperties;
       if (i.size > 0) for (const [s, r] of i) {
-        const { wrapped: n } = r, h = this[s];
-        n !== !0 || this._$AL.has(s) || h === void 0 || this.C(s, void 0, r, h);
+        const { wrapped: a } = r, c = this[s];
+        a !== !0 || this._$AL.has(s) || c === void 0 || this.C(s, void 0, r, c);
       }
     }
     let t = !1;
@@ -246,54 +246,54 @@ let v = class extends HTMLElement {
   firstUpdated(t) {
   }
 };
-v.elementStyles = [], v.shadowRootOptions = { mode: "open" }, v[E("elementProperties")] = /* @__PURE__ */ new Map(), v[E("finalized")] = /* @__PURE__ */ new Map(), vt?.({ ReactiveElement: v }), (N.reactiveElementVersions ??= []).push("2.1.2");
-const W = globalThis, Q = (o) => o, U = W.trustedTypes, X = U ? U.createPolicy("lit-html", { createHTML: (o) => o }) : void 0, at = "$lit$", g = `lit$${Math.random().toFixed(9).slice(2)}$`, lt = "?" + g, yt = `<${lt}>`, b = document, T = () => b.createComment(""), C = (o) => o === null || typeof o != "object" && typeof o != "function", q = Array.isArray, xt = (o) => q(o) || typeof o?.[Symbol.iterator] == "function", L = `[ 	
-\f\r]`, A = /<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g, Y = /-->/g, tt = />/g, f = RegExp(`>|${L}(?:([^\\s"'>=/]+)(${L}*=${L}*(?:[^ 	
+v.elementStyles = [], v.shadowRootOptions = { mode: "open" }, v[E("elementProperties")] = /* @__PURE__ */ new Map(), v[E("finalized")] = /* @__PURE__ */ new Map(), vt?.({ ReactiveElement: v }), (H.reactiveElementVersions ??= []).push("2.1.2");
+const W = globalThis, Y = (o) => o, O = W.trustedTypes, Q = O ? O.createPolicy("lit-html", { createHTML: (o) => o }) : void 0, nt = "$lit$", g = `lit$${Math.random().toFixed(9).slice(2)}$`, lt = "?" + g, yt = `<${lt}>`, b = document, C = () => b.createComment(""), T = (o) => o === null || typeof o != "object" && typeof o != "function", q = Array.isArray, xt = (o) => q(o) || typeof o?.[Symbol.iterator] == "function", L = `[ 	
+\f\r]`, A = /<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g, X = /-->/g, tt = />/g, f = RegExp(`>|${L}(?:([^\\s"'>=/]+)(${L}*=${L}*(?:[^ 	
 \f\r"'\`<>=]|("|')|))|$)`, "g"), et = /'/g, it = /"/g, ct = /^(?:script|style|textarea|title)$/i, wt = (o) => (t, ...e) => ({ _$litType$: o, strings: t, values: e }), p = wt(1), x = /* @__PURE__ */ Symbol.for("lit-noChange"), l = /* @__PURE__ */ Symbol.for("lit-nothing"), st = /* @__PURE__ */ new WeakMap(), $ = b.createTreeWalker(b, 129);
-function ht(o, t) {
+function dt(o, t) {
   if (!q(o) || !o.hasOwnProperty("raw")) throw Error("invalid template strings array");
-  return X !== void 0 ? X.createHTML(t) : t;
+  return Q !== void 0 ? Q.createHTML(t) : t;
 }
 const At = (o, t) => {
   const e = o.length - 1, i = [];
-  let s, r = t === 2 ? "<svg>" : t === 3 ? "<math>" : "", n = A;
-  for (let h = 0; h < e; h++) {
-    const a = o[h];
-    let c, u, d = -1, m = 0;
-    for (; m < a.length && (n.lastIndex = m, u = n.exec(a), u !== null); ) m = n.lastIndex, n === A ? u[1] === "!--" ? n = Y : u[1] !== void 0 ? n = tt : u[2] !== void 0 ? (ct.test(u[2]) && (s = RegExp("</" + u[2], "g")), n = f) : u[3] !== void 0 && (n = f) : n === f ? u[0] === ">" ? (n = s ?? A, d = -1) : u[1] === void 0 ? d = -2 : (d = n.lastIndex - u[2].length, c = u[1], n = u[3] === void 0 ? f : u[3] === '"' ? it : et) : n === it || n === et ? n = f : n === Y || n === tt ? n = A : (n = f, s = void 0);
-    const _ = n === f && o[h + 1].startsWith("/>") ? " " : "";
-    r += n === A ? a + yt : d >= 0 ? (i.push(c), a.slice(0, d) + at + a.slice(d) + g + _) : a + g + (d === -2 ? h : _);
+  let s, r = t === 2 ? "<svg>" : t === 3 ? "<math>" : "", a = A;
+  for (let c = 0; c < e; c++) {
+    const n = o[c];
+    let u, d, h = -1, m = 0;
+    for (; m < n.length && (a.lastIndex = m, d = a.exec(n), d !== null); ) m = a.lastIndex, a === A ? d[1] === "!--" ? a = X : d[1] !== void 0 ? a = tt : d[2] !== void 0 ? (ct.test(d[2]) && (s = RegExp("</" + d[2], "g")), a = f) : d[3] !== void 0 && (a = f) : a === f ? d[0] === ">" ? (a = s ?? A, h = -1) : d[1] === void 0 ? h = -2 : (h = a.lastIndex - d[2].length, u = d[1], a = d[3] === void 0 ? f : d[3] === '"' ? it : et) : a === it || a === et ? a = f : a === X || a === tt ? a = A : (a = f, s = void 0);
+    const _ = a === f && o[c + 1].startsWith("/>") ? " " : "";
+    r += a === A ? n + yt : h >= 0 ? (i.push(u), n.slice(0, h) + nt + n.slice(h) + g + _) : n + g + (h === -2 ? c : _);
   }
-  return [ht(o, r + (o[e] || "<?>") + (t === 2 ? "</svg>" : t === 3 ? "</math>" : "")), i];
+  return [dt(o, r + (o[e] || "<?>") + (t === 2 ? "</svg>" : t === 3 ? "</math>" : "")), i];
 };
 class k {
   constructor({ strings: t, _$litType$: e }, i) {
     let s;
     this.parts = [];
-    let r = 0, n = 0;
-    const h = t.length - 1, a = this.parts, [c, u] = At(t, e);
-    if (this.el = k.createElement(c, i), $.currentNode = this.el.content, e === 2 || e === 3) {
-      const d = this.el.content.firstChild;
-      d.replaceWith(...d.childNodes);
+    let r = 0, a = 0;
+    const c = t.length - 1, n = this.parts, [u, d] = At(t, e);
+    if (this.el = k.createElement(u, i), $.currentNode = this.el.content, e === 2 || e === 3) {
+      const h = this.el.content.firstChild;
+      h.replaceWith(...h.childNodes);
     }
-    for (; (s = $.nextNode()) !== null && a.length < h; ) {
+    for (; (s = $.nextNode()) !== null && n.length < c; ) {
       if (s.nodeType === 1) {
-        if (s.hasAttributes()) for (const d of s.getAttributeNames()) if (d.endsWith(at)) {
-          const m = u[n++], _ = s.getAttribute(d).split(g), M = /([.?@])?(.*)/.exec(m);
-          a.push({ type: 1, index: r, name: M[2], strings: _, ctor: M[1] === "." ? St : M[1] === "?" ? Tt : M[1] === "@" ? Ct : R }), s.removeAttribute(d);
-        } else d.startsWith(g) && (a.push({ type: 6, index: r }), s.removeAttribute(d));
+        if (s.hasAttributes()) for (const h of s.getAttributeNames()) if (h.endsWith(nt)) {
+          const m = d[a++], _ = s.getAttribute(h).split(g), M = /([.?@])?(.*)/.exec(m);
+          n.push({ type: 1, index: r, name: M[2], strings: _, ctor: M[1] === "." ? St : M[1] === "?" ? Ct : M[1] === "@" ? Tt : R }), s.removeAttribute(h);
+        } else h.startsWith(g) && (n.push({ type: 6, index: r }), s.removeAttribute(h));
         if (ct.test(s.tagName)) {
-          const d = s.textContent.split(g), m = d.length - 1;
+          const h = s.textContent.split(g), m = h.length - 1;
           if (m > 0) {
-            s.textContent = U ? U.emptyScript : "";
-            for (let _ = 0; _ < m; _++) s.append(d[_], T()), $.nextNode(), a.push({ type: 2, index: ++r });
-            s.append(d[m], T());
+            s.textContent = O ? O.emptyScript : "";
+            for (let _ = 0; _ < m; _++) s.append(h[_], C()), $.nextNode(), n.push({ type: 2, index: ++r });
+            s.append(h[m], C());
           }
         }
-      } else if (s.nodeType === 8) if (s.data === lt) a.push({ type: 2, index: r });
+      } else if (s.nodeType === 8) if (s.data === lt) n.push({ type: 2, index: r });
       else {
-        let d = -1;
-        for (; (d = s.data.indexOf(g, d + 1)) !== -1; ) a.push({ type: 7, index: r }), d += g.length - 1;
+        let h = -1;
+        for (; (h = s.data.indexOf(g, h + 1)) !== -1; ) n.push({ type: 7, index: r }), h += g.length - 1;
       }
       r++;
     }
@@ -306,7 +306,7 @@ class k {
 function w(o, t, e = o, i) {
   if (t === x) return t;
   let s = i !== void 0 ? e._$Co?.[i] : e._$Cl;
-  const r = C(t) ? void 0 : t._$litDirective$;
+  const r = T(t) ? void 0 : t._$litDirective$;
   return s?.constructor !== r && (s?._$AO?.(!1), r === void 0 ? s = void 0 : (s = new r(o), s._$AT(o, e, i)), i !== void 0 ? (e._$Co ??= [])[i] = s : e._$Cl = s), s !== void 0 && (t = w(o, s._$AS(o, t.values), s, i)), t;
 }
 class Et {
@@ -322,13 +322,13 @@ class Et {
   u(t) {
     const { el: { content: e }, parts: i } = this._$AD, s = (t?.creationScope ?? b).importNode(e, !0);
     $.currentNode = s;
-    let r = $.nextNode(), n = 0, h = 0, a = i[0];
-    for (; a !== void 0; ) {
-      if (n === a.index) {
-        let c;
-        a.type === 2 ? c = new P(r, r.nextSibling, this, t) : a.type === 1 ? c = new a.ctor(r, a.name, a.strings, this, t) : a.type === 6 && (c = new kt(r, this, t)), this._$AV.push(c), a = i[++h];
+    let r = $.nextNode(), a = 0, c = 0, n = i[0];
+    for (; n !== void 0; ) {
+      if (a === n.index) {
+        let u;
+        n.type === 2 ? u = new P(r, r.nextSibling, this, t) : n.type === 1 ? u = new n.ctor(r, n.name, n.strings, this, t) : n.type === 6 && (u = new kt(r, this, t)), this._$AV.push(u), n = i[++c];
       }
-      n !== a?.index && (r = $.nextNode(), n++);
+      a !== n?.index && (r = $.nextNode(), a++);
     }
     return $.currentNode = b, s;
   }
@@ -356,7 +356,7 @@ class P {
     return this._$AB;
   }
   _$AI(t, e = this) {
-    t = w(this, t, e), C(t) ? t === l || t == null || t === "" ? (this._$AH !== l && this._$AR(), this._$AH = l) : t !== this._$AH && t !== x && this._(t) : t._$litType$ !== void 0 ? this.$(t) : t.nodeType !== void 0 ? this.T(t) : xt(t) ? this.k(t) : this._(t);
+    t = w(this, t, e), T(t) ? t === l || t == null || t === "" ? (this._$AH !== l && this._$AR(), this._$AH = l) : t !== this._$AH && t !== x && this._(t) : t._$litType$ !== void 0 ? this.$(t) : t.nodeType !== void 0 ? this.T(t) : xt(t) ? this.k(t) : this._(t);
   }
   O(t) {
     return this._$AA.parentNode.insertBefore(t, this._$AB);
@@ -365,14 +365,14 @@ class P {
     this._$AH !== t && (this._$AR(), this._$AH = this.O(t));
   }
   _(t) {
-    this._$AH !== l && C(this._$AH) ? this._$AA.nextSibling.data = t : this.T(b.createTextNode(t)), this._$AH = t;
+    this._$AH !== l && T(this._$AH) ? this._$AA.nextSibling.data = t : this.T(b.createTextNode(t)), this._$AH = t;
   }
   $(t) {
-    const { values: e, _$litType$: i } = t, s = typeof i == "number" ? this._$AC(t) : (i.el === void 0 && (i.el = k.createElement(ht(i.h, i.h[0]), this.options)), i);
+    const { values: e, _$litType$: i } = t, s = typeof i == "number" ? this._$AC(t) : (i.el === void 0 && (i.el = k.createElement(dt(i.h, i.h[0]), this.options)), i);
     if (this._$AH?._$AD === s) this._$AH.p(e);
     else {
-      const r = new Et(s, this), n = r.u(this.options);
-      r.p(e), this.T(n), this._$AH = r;
+      const r = new Et(s, this), a = r.u(this.options);
+      r.p(e), this.T(a), this._$AH = r;
     }
   }
   _$AC(t) {
@@ -383,13 +383,13 @@ class P {
     q(this._$AH) || (this._$AH = [], this._$AR());
     const e = this._$AH;
     let i, s = 0;
-    for (const r of t) s === e.length ? e.push(i = new P(this.O(T()), this.O(T()), this, this.options)) : i = e[s], i._$AI(r), s++;
+    for (const r of t) s === e.length ? e.push(i = new P(this.O(C()), this.O(C()), this, this.options)) : i = e[s], i._$AI(r), s++;
     s < e.length && (this._$AR(i && i._$AB.nextSibling, s), e.length = s);
   }
   _$AR(t = this._$AA.nextSibling, e) {
     for (this._$AP?.(!1, !0, e); t !== this._$AB; ) {
-      const i = Q(t).nextSibling;
-      Q(t).remove(), t = i;
+      const i = Y(t).nextSibling;
+      Y(t).remove(), t = i;
     }
   }
   setConnected(t) {
@@ -408,14 +408,14 @@ class R {
   }
   _$AI(t, e = this, i, s) {
     const r = this.strings;
-    let n = !1;
-    if (r === void 0) t = w(this, t, e, 0), n = !C(t) || t !== this._$AH && t !== x, n && (this._$AH = t);
+    let a = !1;
+    if (r === void 0) t = w(this, t, e, 0), a = !T(t) || t !== this._$AH && t !== x, a && (this._$AH = t);
     else {
-      const h = t;
-      let a, c;
-      for (t = r[0], a = 0; a < r.length - 1; a++) c = w(this, h[i + a], e, a), c === x && (c = this._$AH[a]), n ||= !C(c) || c !== this._$AH[a], c === l ? t = l : t !== l && (t += (c ?? "") + r[a + 1]), this._$AH[a] = c;
+      const c = t;
+      let n, u;
+      for (t = r[0], n = 0; n < r.length - 1; n++) u = w(this, c[i + n], e, n), u === x && (u = this._$AH[n]), a ||= !T(u) || u !== this._$AH[n], u === l ? t = l : t !== l && (t += (u ?? "") + r[n + 1]), this._$AH[n] = u;
     }
-    n && !s && this.j(t);
+    a && !s && this.j(t);
   }
   j(t) {
     t === l ? this.element.removeAttribute(this.name) : this.element.setAttribute(this.name, t ?? "");
@@ -429,7 +429,7 @@ class St extends R {
     this.element[this.name] = t === l ? void 0 : t;
   }
 }
-class Tt extends R {
+class Ct extends R {
   constructor() {
     super(...arguments), this.type = 4;
   }
@@ -437,7 +437,7 @@ class Tt extends R {
     this.element.toggleAttribute(this.name, !!t && t !== l);
   }
 }
-class Ct extends R {
+class Tt extends R {
   constructor(t, e, i, s, r) {
     super(t, e, i, s, r), this.type = 5;
   }
@@ -468,11 +468,11 @@ const Mt = (o, t, e) => {
   let s = i._$litPart$;
   if (s === void 0) {
     const r = e?.renderBefore ?? null;
-    i._$litPart$ = s = new P(t.insertBefore(T(), r), r, void 0, e ?? {});
+    i._$litPart$ = s = new P(t.insertBefore(C(), r), r, void 0, e ?? {});
   }
   return s._$AI(o), s;
 };
-const F = globalThis;
+const K = globalThis;
 class y extends v {
   constructor() {
     super(...arguments), this.renderOptions = { host: this }, this._$Do = void 0;
@@ -495,11 +495,11 @@ class y extends v {
     return x;
   }
 }
-y._$litElement$ = !0, y.finalized = !0, F.litElementHydrateSupport?.({ LitElement: y });
-const zt = F.litElementPolyfillSupport;
+y._$litElement$ = !0, y.finalized = !0, K.litElementHydrateSupport?.({ LitElement: y });
+const zt = K.litElementPolyfillSupport;
 zt?.({ LitElement: y });
-(F.litElementVersions ??= []).push("4.2.2");
-const S = [15, 30, 60, 120], O = class O extends y {
+(K.litElementVersions ??= []).push("4.2.2");
+const S = [15, 30, 60, 120], U = class U extends y {
   setConfig(t) {
     this._config = { ...t };
   }
@@ -545,6 +545,20 @@ const S = [15, 30, 60, 120], O = class O extends y {
             @input=${(i) => this._setValue("name", i.target.value)}
           />
         </label>
+        <label>
+          Layout
+          <select
+            name="layout"
+            .value=${this._config.layout ?? "standard"}
+            @change=${(i) => this._setValue(
+      "layout",
+      i.target.value
+    )}
+          >
+            <option value="standard">Standard</option>
+            <option value="compact">Compact</option>
+          </select>
+        </label>
         <label class="toggle">
           <input
             type="checkbox"
@@ -582,10 +596,10 @@ const S = [15, 30, 60, 120], O = class O extends y {
     `;
   }
 };
-O.properties = {
+U.properties = {
   hass: { attribute: !1 },
   _config: { state: !0 }
-}, O.styles = ot`
+}, U.styles = ot`
     :host { display: block; }
     .form { display: grid; gap: 16px; padding: 8px 0; }
     label { display: grid; gap: 6px; color: var(--primary-text-color); }
@@ -603,11 +617,15 @@ O.properties = {
       font: inherit;
     }
   `;
-let D = O;
+let D = U;
 customElements.define("scheduled-climate-card-editor", D);
-const Ut = /* @__PURE__ */ new Set(["unavailable", "unknown"]), H = class H extends y {
+const Ot = /* @__PURE__ */ new Set(["unavailable", "unknown"]), Ut = "scheduled-climate-card:collapsed", N = class N extends y {
   constructor() {
-    super(...arguments), this._busy = !1, this._message = "", this._scheduleEnabled = !1, this._onTime = "", this._offTime = "", this._timerMinutes = 30, this._scheduleSignature = "";
+    super(...arguments), this._busy = !1, this._message = "", this._scheduleEnabled = !1, this._onTime = "", this._offTime = "", this._timerMinutes = 30, this._scheduleSignature = "", this._collapsed = {
+      preset: !1,
+      schedule: !1,
+      timer: !1
+    };
   }
   static getConfigElement() {
     return document.createElement("scheduled-climate-card-editor");
@@ -616,6 +634,7 @@ const Ut = /* @__PURE__ */ new Set(["unavailable", "unknown"]), H = class H exte
     return {
       type: "custom:scheduled-climate-card",
       entity: "",
+      layout: "standard",
       show_schedule: !0,
       show_timer: !0,
       timer_presets: S
@@ -624,11 +643,12 @@ const Ut = /* @__PURE__ */ new Set(["unavailable", "unknown"]), H = class H exte
   setConfig(t) {
     if (!t.entity) throw new Error("Scheduled Climate Card requires an entity");
     this._config = {
+      layout: "standard",
       show_schedule: !0,
       show_timer: !0,
       timer_presets: S,
       ...t
-    };
+    }, this._collapsed = this._loadCollapseState(t.entity);
   }
   getCardSize() {
     return 7;
@@ -648,6 +668,58 @@ const Ut = /* @__PURE__ */ new Set(["unavailable", "unknown"]), H = class H exte
   }
   _shortTime(t) {
     return t ? t.slice(0, 5) : "";
+  }
+  _storageKey(t) {
+    return `${Ut}:${t}`;
+  }
+  _loadCollapseState(t) {
+    const e = {
+      preset: !1,
+      schedule: !1,
+      timer: !1
+    };
+    try {
+      const i = localStorage.getItem(this._storageKey(t));
+      if (!i) return e;
+      const s = JSON.parse(i);
+      return {
+        preset: s.preset === !0,
+        schedule: s.schedule === !0,
+        timer: s.timer === !0
+      };
+    } catch {
+      return e;
+    }
+  }
+  _toggleSection(t) {
+    if (this._config) {
+      this._collapsed = {
+        ...this._collapsed,
+        [t]: !this._collapsed[t]
+      };
+      try {
+        localStorage.setItem(
+          this._storageKey(this._config.entity),
+          JSON.stringify(this._collapsed)
+        );
+      } catch {
+      }
+    }
+  }
+  _renderCollapseButton(t, e, i) {
+    const s = !this._collapsed[t];
+    return p`
+      <button
+        class="collapse-button icon"
+        title=${`${s ? "Collapse" : "Expand"} ${e.toLowerCase()}`}
+        aria-label=${`${s ? "Collapse" : "Expand"} ${e.toLowerCase()}`}
+        aria-expanded=${s}
+        aria-controls=${i}
+        @click=${() => this._toggleSection(t)}
+      >
+        <ha-icon icon=${s ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon>
+      </button>
+    `;
   }
   async _call(t, e, i = {}) {
     if (!this.hass || !this._config || this._busy) return !1;
@@ -680,19 +752,19 @@ const Ut = /* @__PURE__ */ new Set(["unavailable", "unknown"]), H = class H exte
   _adjustTemperature(t, e, i) {
     const s = this._state;
     if (!s) return;
-    const r = s.attributes, n = {
+    const r = s.attributes, a = {
       [t]: Math.round((e + i) * 100) / 100
     };
-    t === "target_temp_low" && (n.target_temp_high = r.target_temp_high), t === "target_temp_high" && (n.target_temp_low = r.target_temp_low), this._call("climate", "set_temperature", n);
+    t === "target_temp_low" && (a.target_temp_high = r.target_temp_high), t === "target_temp_high" && (a.target_temp_low = r.target_temp_low), this._call("climate", "set_temperature", a);
   }
-  _renderTemperatureControl(t, e, i, s, r, n, h) {
+  _renderTemperatureControl(t, e, i, s, r, a, c) {
     return p`
       <div class="number-control" aria-label=${t}>
         <button
           class="step-button"
           title=${`Decrease ${t.toLowerCase()}`}
           aria-label=${`Decrease ${t.toLowerCase()}`}
-          ?disabled=${this._busy || i - r < n}
+          ?disabled=${this._busy || i - r < a}
           @click=${() => this._adjustTemperature(e, i, -r)}
         ><ha-icon icon="mdi:minus"></ha-icon></button>
         <div class="target-value">
@@ -703,7 +775,7 @@ const Ut = /* @__PURE__ */ new Set(["unavailable", "unknown"]), H = class H exte
           class="step-button"
           title=${`Increase ${t.toLowerCase()}`}
           aria-label=${`Increase ${t.toLowerCase()}`}
-          ?disabled=${this._busy || i + r > h}
+          ?disabled=${this._busy || i + r > c}
           @click=${() => this._adjustTemperature(e, i, r)}
         ><ha-icon icon="mdi:plus"></ha-icon></button>
       </div>
@@ -716,95 +788,105 @@ const Ut = /* @__PURE__ */ new Set(["unavailable", "unknown"]), H = class H exte
         <select
           .value=${e ?? ""}
           ?disabled=${this._busy}
-          @change=${(n) => this._call("climate", s, {
-      [r]: n.target.value
+          @change=${(a) => this._call("climate", s, {
+      [r]: a.target.value
     })}
         >
-          ${i.map((n) => p`<option value=${n}>${n.replaceAll("_", " ")}</option>`)}
+          ${i.map((a) => p`<option value=${a}>${a.replaceAll("_", " ")}</option>`)}
         </select>
       </label>
     ` : l;
   }
   _renderClimate(t) {
-    const e = t.attributes, i = String(e.unit_of_measurement ?? "°"), s = e.hvac_modes ?? [], r = e.temperature, n = e.target_temp_low, h = e.target_temp_high, a = e.target_temp_step ?? 0.5;
+    const e = t.attributes, i = String(e.unit_of_measurement ?? "°"), s = e.hvac_modes ?? [], r = e.temperature, a = e.target_temp_low, c = e.target_temp_high, n = e.target_temp_step ?? 0.5, u = this._config?.layout === "compact";
     return p`
       <section class="climate" aria-label="Climate controls">
-        <div class=${`thermostat ${t.state === "off" ? "is-off" : "is-active"}`}>
-          <div class="dial-ring">
-            <div class="dial-content">
-              <span class="current-label">Current</span>
-              <span class="current">${this._formatValue(e.current_temperature, i)}</span>
+        ${u ? p`<div class="compact-status">
+              <div>
+                <span class="current-label">Current</span>
+                <span class="compact-current">${this._formatValue(e.current_temperature, i)}</span>
+              </div>
               ${e.hvac_action ? p`<span class="action"><span class="pulse"></span>${e.hvac_action.replaceAll("_", " ")}</span>` : l}
-            </div>
-          </div>
-        </div>
+            </div>` : p`<div class=${`thermostat ${t.state === "off" ? "is-off" : "is-active"}`}>
+              <div class="dial-ring">
+                <div class="dial-content">
+                  <span class="current-label">Current</span>
+                  <span class="current">${this._formatValue(e.current_temperature, i)}</span>
+                  ${e.hvac_action ? p`<span class="action"><span class="pulse"></span>${e.hvac_action.replaceAll("_", " ")}</span>` : l}
+                </div>
+              </div>
+            </div>`}
         ${typeof r == "number" ? this._renderTemperatureControl(
       "Target",
       "temperature",
       r,
       i,
-      a,
+      n,
       e.min_temp ?? 7,
       e.max_temp ?? 35
-    ) : typeof n == "number" && typeof h == "number" ? p`<div class="range-target" aria-label="Target temperature range">
+    ) : typeof a == "number" && typeof c == "number" ? p`<div class="range-target" aria-label="Target temperature range">
                 ${this._renderTemperatureControl(
       "Low",
       "target_temp_low",
-      n,
-      i,
       a,
+      i,
+      n,
       e.min_temp ?? 7,
-      h
+      c
     )}
                 ${this._renderTemperatureControl(
       "High",
       "target_temp_high",
-      h,
+      c,
       i,
-      a,
       n,
+      a,
       e.max_temp ?? 35
     )}
               </div>` : l}
         <div class="modes feature-buttons" role="group" aria-label="HVAC mode">
           ${s.map(
-      (c) => p`
+      (d) => p`
               <button
-                class=${t.state === c ? "selected" : ""}
+                class=${t.state === d ? "selected" : ""}
                 ?disabled=${this._busy}
-                aria-pressed=${t.state === c}
-                @click=${() => this._call("climate", "set_hvac_mode", { hvac_mode: c })}
-              ><ha-icon icon=${this._modeIcon(c)}></ha-icon><span>${c.replaceAll("_", " ")}</span></button>
+                aria-pressed=${t.state === d}
+                @click=${() => this._call("climate", "set_hvac_mode", { hvac_mode: d })}
+              ><ha-icon icon=${this._modeIcon(d)}></ha-icon><span>${d.replaceAll("_", " ")}</span></button>
             `
     )}
         </div>
-        <div class="control-grid">
-          ${this._renderSelect("Preset", e.preset_mode, e.preset_modes, "set_preset_mode", "preset_mode")}
-          ${this._renderSelect("Fan", e.fan_mode, e.fan_modes, "set_fan_mode", "fan_mode")}
-          ${this._renderSelect("Swing", e.swing_mode, e.swing_modes, "set_swing_mode", "swing_mode")}
-          ${this._renderSelect(
+        <div class="subsection-heading">
+          <div><h3>Preset & options</h3><p>${e.preset_mode?.replaceAll("_", " ") ?? "Climate settings"}</p></div>
+          ${this._renderCollapseButton("preset", "Preset and options", "preset-controls")}
+        </div>
+        <div id="preset-controls" class="control-grid" ?hidden=${this._collapsed.preset}>
+              ${this._renderSelect("Preset", e.preset_mode, e.preset_modes, "set_preset_mode", "preset_mode")}
+              ${this._renderSelect("Fan", e.fan_mode, e.fan_modes, "set_fan_mode", "fan_mode")}
+              ${this._renderSelect("Swing", e.swing_mode, e.swing_modes, "set_swing_mode", "swing_mode")}
+              ${this._renderSelect(
       "Horizontal swing",
       e.swing_horizontal_mode,
       e.swing_horizontal_modes,
       "set_swing_horizontal_mode",
       "swing_horizontal_mode"
     )}
-          ${typeof e.humidity == "number" ? p`
-                <label class="field">
-                  <span>Humidity</span>
-                  <input
-                    type="number"
-                    .value=${String(e.humidity)}
-                    min=${e.min_humidity ?? 30}
-                    max=${e.max_humidity ?? 99}
-                    ?disabled=${this._busy}
-                    @change=${(c) => this._call("climate", "set_humidity", {
-      humidity: Number(c.target.value)
+              ${typeof e.humidity == "number" ? p`
+                    <label class="field">
+                      <span>Humidity</span>
+                      <input
+                        type="number"
+                        .value=${String(e.humidity)}
+                        min=${e.min_humidity ?? 30}
+                        max=${e.max_humidity ?? 99}
+                        ?disabled=${this._busy}
+                        @change=${(d) => this._call("climate", "set_humidity", {
+      humidity: Number(d.target.value)
     })}
-                  />
-                </label>
-              ` : l}
-        </div>
+                      />
+                    </label>
+                  ` : l}
+          </div>
       </section>
     `;
   }
@@ -829,8 +911,9 @@ const Ut = /* @__PURE__ */ new Set(["unavailable", "unknown"]), H = class H exte
             />
             <span>Enabled</span>
           </label>
+          ${this._renderCollapseButton("schedule", "Daily schedule", "schedule-controls")}
         </div>
-        <div class="schedule-grid">
+        <div id="schedule-controls" class="schedule-grid" ?hidden=${this._collapsed.schedule}>
           <label class="field"><span>On time</span><input type="time" .value=${this._onTime} @input=${(s) => this._onTime = s.target.value} /></label>
           <label class="field"><span>Off time</span><input type="time" .value=${this._offTime} @input=${(s) => this._offTime = s.target.value} /></label>
           <button class="primary" ?disabled=${this._busy} @click=${() => this._call("scheduled_climate", "update_schedule", {
@@ -858,7 +941,9 @@ const Ut = /* @__PURE__ */ new Set(["unavailable", "unknown"]), H = class H exte
           <ha-icon class="section-icon" icon="mdi:timer-outline"></ha-icon>
           <div class="section-copy"><h3 id="timer-heading">Timer</h3><p>${e && i ? `${e} at ${new Date(i).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "No active timer"}</p></div>
           ${e ? p`<button class="icon" title="Cancel timer" aria-label="Cancel timer" @click=${() => this._call("scheduled_climate", "cancel_timer")}><ha-icon icon="mdi:timer-off-outline"></ha-icon></button>` : l}
+          ${this._renderCollapseButton("timer", "Timer", "timer-controls")}
         </div>
+        <div id="timer-controls" class="collapsible-body" ?hidden=${this._collapsed.timer}>
         <div class="presets" aria-label="Timer presets">
           ${s.map((r) => p`<button class=${this._timerMinutes === r ? "selected" : ""} @click=${() => this._timerMinutes = r}>${r < 60 ? `${r}m` : `${r / 60}h`}</button>`)}
           <label class="custom-time"><span>Minutes</span><input type="number" min="1" step="1" .value=${String(this._timerMinutes)} @input=${(r) => this._timerMinutes = Math.max(1, Number(r.target.value))} /></label>
@@ -866,6 +951,7 @@ const Ut = /* @__PURE__ */ new Set(["unavailable", "unknown"]), H = class H exte
         <div class="timer-actions">
           <button class="primary" ?disabled=${this._busy} @click=${() => this._startTimer("on")}><ha-icon icon="mdi:power"></ha-icon>Turn on later</button>
           <button ?disabled=${this._busy} @click=${() => this._startTimer("off")}><ha-icon icon="mdi:power-off"></ha-icon>Turn off later</button>
+        </div>
         </div>
       </section>
     `;
@@ -880,9 +966,9 @@ const Ut = /* @__PURE__ */ new Set(["unavailable", "unknown"]), H = class H exte
     if (!this._config || !this.hass) return l;
     const t = this._state;
     if (!t) return p`<ha-card><div class="empty">Entity not found</div></ha-card>`;
-    const e = Ut.has(t.state), i = this._config.name ?? t.attributes.friendly_name ?? "Scheduled Climate";
+    const e = Ot.has(t.state), i = this._config.name ?? t.attributes.friendly_name ?? "Scheduled Climate";
     return p`
-      <ha-card class=${`state-${t.state}`}>
+      <ha-card class=${`state-${t.state} ${this._config.layout === "compact" ? "compact" : "standard"}`}>
         <header>
           <div class="title-block"><h2>${i}</h2><p>${e ? "Unavailable" : t.state.replaceAll("_", " ")}</p></div>
           <button class="more-info icon" title="More information" aria-label="More information" @click=${this._showMoreInfo}>
@@ -904,7 +990,7 @@ const Ut = /* @__PURE__ */ new Set(["unavailable", "unknown"]), H = class H exte
     }));
   }
 };
-H.properties = {
+N.properties = {
   hass: { attribute: !1 },
   _config: { state: !0 },
   _busy: { state: !0 },
@@ -912,8 +998,9 @@ H.properties = {
   _scheduleEnabled: { state: !0 },
   _onTime: { state: !0 },
   _offTime: { state: !0 },
-  _timerMinutes: { state: !0 }
-}, H.styles = ot`
+  _timerMinutes: { state: !0 },
+  _collapsed: { state: !0 }
+}, N.styles = ot`
     :host { display: block; color: var(--primary-text-color); --feature-color: var(--state-climate-heat-color, var(--primary-color)); }
     ha-card { overflow: hidden; border-radius: var(--ha-card-border-radius, var(--ha-border-radius-lg, 12px)); }
     ha-card.state-cool { --feature-color: var(--state-climate-cool-color, #2196f3); }
@@ -937,6 +1024,9 @@ H.properties = {
     .dial-content { display: grid; justify-items: center; gap: 3px; }
     .current-label { color: var(--secondary-text-color); font-size: 12px; }
     .current { font-size: 48px; line-height: 1.05; font-weight: 400; font-variant-numeric: tabular-nums; }
+    .compact-status { display: flex; min-height: 52px; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 10px; }
+    .compact-status > div { display: grid; }
+    .compact-current { font-size: 30px; line-height: 1.1; font-weight: 400; font-variant-numeric: tabular-nums; }
     .action { display: flex; align-items: center; gap: 6px; color: var(--secondary-text-color); font-size: 12px; text-transform: capitalize; }
     .pulse { width: 7px; height: 7px; border-radius: 50%; background: var(--state-climate-heat-color, var(--primary-color)); }
     .number-control { display: grid; grid-template-columns: 44px minmax(80px, 1fr) 44px; align-items: center; max-width: 260px; margin: 0 auto; border: 1px solid var(--divider-color); border-radius: var(--ha-border-radius-pill, 999px); overflow: hidden; }
@@ -962,6 +1052,9 @@ H.properties = {
     input, select { box-sizing: border-box; min-width: 0; min-height: 40px; padding: 7px 10px; color: var(--primary-text-color); background: var(--card-background-color); border: 1px solid var(--divider-color); border-radius: var(--ha-border-radius-md, 8px); font: inherit; }
     input[type="checkbox"] { accent-color: var(--primary-color); }
     .section-heading { display: flex; align-items: center; gap: 12px; }
+    .subsection-heading { display: flex; align-items: center; gap: 12px; margin-top: 16px; }
+    .subsection-heading > div { min-width: 0; flex: 1; }
+    .subsection-heading p { margin-top: 3px; text-transform: capitalize; }
     .section-icon { --mdc-icon-size: 22px; flex: 0 0 auto; padding: 9px; border-radius: 50%; color: var(--feature-color); background: color-mix(in srgb, var(--feature-color) 12%, var(--card-background-color)); }
     .section-copy { min-width: 0; flex: 1; }
     .section-heading p { margin-top: 3px; }
@@ -969,11 +1062,20 @@ H.properties = {
     .schedule-grid .primary { align-self: end; }
     .icon { width: 40px; padding: 7px; }
     .icon ha-icon { margin: 0; }
+    .collapse-button { flex: 0 0 auto; border: 0; color: var(--secondary-text-color); background: transparent; }
+    [hidden] { display: none !important; }
     .custom-time { display: flex; align-items: center; gap: 6px; margin-left: auto; }
     .custom-time input { width: 68px; }
     .timer-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
     .message { padding: 10px 20px; border-top: 1px solid var(--divider-color); color: var(--secondary-text-color); font-size: 13px; }
     .empty { padding: 28px 20px; color: var(--secondary-text-color); text-align: center; }
+    ha-card.compact header { min-height: 44px; padding-block: 10px; }
+    ha-card.compact .climate { padding: 4px 16px 12px; }
+    ha-card.compact .modes { margin-top: 12px; }
+    ha-card.compact .subsection-heading { margin-top: 12px; }
+    ha-card.compact section:not(.climate) { padding: 12px 16px; }
+    ha-card.compact .control-grid, ha-card.compact .schedule-grid { margin-top: 10px; }
+    ha-card.compact .feature-buttons button { min-height: 44px; }
     @media (max-width: 420px) {
       header, section { padding: 16px; }
       .control-grid, .schedule-grid { grid-template-columns: 1fr; }
@@ -981,13 +1083,14 @@ H.properties = {
       .current { font-size: 42px; }
       .custom-time { margin-left: 0; }
       .range-target { grid-template-columns: 1fr; }
+      ha-card.compact .range-target { grid-template-columns: 1fr 1fr; }
       .presets { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); overflow-x: visible; }
       .presets > button { min-width: 0; padding-inline: 6px; }
       .custom-time { grid-column: 1 / -1; width: 100%; }
       .custom-time input { flex: 1; width: auto; }
     }
   `;
-let I = H;
+let I = N;
 customElements.define("scheduled-climate-card", I);
 window.customCards = window.customCards ?? [];
 window.customCards.push({

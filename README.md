@@ -20,6 +20,7 @@ Add the card through the dashboard visual editor or use YAML:
 type: custom:scheduled-climate-card
 entity: climate.living_room_scheduled
 name: Living room
+layout: compact
 timer_presets:
   - 15
   - 30
@@ -30,6 +31,8 @@ show_timer: true
 ```
 
 The card derives all schedule and timer state from the wrapper entity. It displays only climate controls supported by that entity, including HVAC mode, target temperature, preset, fan, swing, and humidity controls where available.
+
+The `layout` option accepts `standard` (the default) or `compact`. Compact layout removes the circular temperature dial while retaining touch-friendly temperature and HVAC controls. Preset and climate options, the daily schedule, and the timer can each be collapsed; their states are retained per entity in the current browser.
 
 ## Daily Schedule
 

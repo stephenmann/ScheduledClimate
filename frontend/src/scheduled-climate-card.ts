@@ -10,6 +10,9 @@ declare global {
 }
 
 const UNAVAILABLE = new Set(["unavailable", "unknown"]);
+const COLLAPSE_STORAGE_KEY = "scheduled-climate-card:collapsed";
+type CollapsibleSection = "preset" | "schedule" | "timer";
+type CollapseState = Record<CollapsibleSection, boolean>;
 
 export class ScheduledClimateCard extends LitElement {
   static properties = {
@@ -21,6 +24,7 @@ export class ScheduledClimateCard extends LitElement {
     _onTime: { state: true },
     _offTime: { state: true },
     _timerMinutes: { state: true },
+    _collapsed: { state: true },
   };
 
   hass?: HomeAssistant;
@@ -32,6 +36,11 @@ export class ScheduledClimateCard extends LitElement {
   private _offTime = "";
   private _timerMinutes = 30;
   private _scheduleSignature = "";
+  private _collapsed: CollapseState = {
+    preset: false,
+    schedule: false,
+    timer: false,
+  };
 
   static getConfigElement(): HTMLElement {
     return document.createElement("scheduled-climate-card-editor");
@@ -41,6 +50,7 @@ export class ScheduledClimateCard extends LitElement {
     return {
       type: "custom:scheduled-climate-card",
       entity: "",
+      layout: "standard",
       show_schedule: true,
       show_timer: true,
       timer_presets: DEFAULT_PRESETS,
@@ -50,11 +60,13 @@ export class ScheduledClimateCard extends LitElement {
   setConfig(config: ScheduledClimateCardConfig): void {
     if (!config.entity) throw new Error("Scheduled Climate Card requires an entity");
     this._config = {
+      layout: "standard",
       show_schedule: true,
       show_timer: true,
       timer_presets: DEFAULT_PRESETS,
       ...config,
     };
+    this._collapsed = this._loadCollapseState(config.entity);
   }
 
   getCardSize(): number {
@@ -84,6 +96,66 @@ export class ScheduledClimateCard extends LitElement {
 
   private _shortTime(value?: string | null): string {
     return value ? value.slice(0, 5) : "";
+  }
+
+  private _storageKey(entityId: string): string {
+    return `${COLLAPSE_STORAGE_KEY}:${entityId}`;
+  }
+
+  private _loadCollapseState(entityId: string): CollapseState {
+    const defaults: CollapseState = {
+      preset: false,
+      schedule: false,
+      timer: false,
+    };
+    try {
+      const stored = localStorage.getItem(this._storageKey(entityId));
+      if (!stored) return defaults;
+      const value = JSON.parse(stored) as Partial<CollapseState>;
+      return {
+        preset: value.preset === true,
+        schedule: value.schedule === true,
+        timer: value.timer === true,
+      };
+    } catch {
+      return defaults;
+    }
+  }
+
+  private _toggleSection(section: CollapsibleSection): void {
+    if (!this._config) return;
+    this._collapsed = {
+      ...this._collapsed,
+      [section]: !this._collapsed[section],
+    };
+    try {
+      localStorage.setItem(
+        this._storageKey(this._config.entity),
+        JSON.stringify(this._collapsed),
+      );
+    } catch {
+      // Storage can be unavailable in privacy-restricted browser contexts.
+    }
+  }
+
+  private _renderCollapseButton(
+    section: CollapsibleSection,
+    label: string,
+    controls: string,
+  ) {
+    const expanded = !this._collapsed[section];
+    return html`
+      <button
+        class="collapse-button icon"
+        title=${`${expanded ? "Collapse" : "Expand"} ${label.toLowerCase()}`}
+        aria-label=${`${expanded ? "Collapse" : "Expand"} ${label.toLowerCase()}`}
+        aria-expanded=${expanded}
+        aria-controls=${controls}
+        @click=${() => this._toggleSection(section)}
+      >
+        <ha-icon icon=${expanded ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon>
+      </button>
+    `;
   }
 
   private async _call(
@@ -203,20 +275,31 @@ export class ScheduledClimateCard extends LitElement {
     const targetLow = attrs.target_temp_low;
     const targetHigh = attrs.target_temp_high;
     const step = attrs.target_temp_step ?? 0.5;
+    const compact = this._config?.layout === "compact";
 
     return html`
       <section class="climate" aria-label="Climate controls">
-        <div class=${`thermostat ${state.state === "off" ? "is-off" : "is-active"}`}>
-          <div class="dial-ring">
-            <div class="dial-content">
-              <span class="current-label">Current</span>
-              <span class="current">${this._formatValue(attrs.current_temperature, unit)}</span>
+        ${compact
+          ? html`<div class="compact-status">
+              <div>
+                <span class="current-label">Current</span>
+                <span class="compact-current">${this._formatValue(attrs.current_temperature, unit)}</span>
+              </div>
               ${attrs.hvac_action
                 ? html`<span class="action"><span class="pulse"></span>${attrs.hvac_action.replaceAll("_", " ")}</span>`
                 : nothing}
-            </div>
-          </div>
-        </div>
+            </div>`
+          : html`<div class=${`thermostat ${state.state === "off" ? "is-off" : "is-active"}`}>
+              <div class="dial-ring">
+                <div class="dial-content">
+                  <span class="current-label">Current</span>
+                  <span class="current">${this._formatValue(attrs.current_temperature, unit)}</span>
+                  ${attrs.hvac_action
+                    ? html`<span class="action"><span class="pulse"></span>${attrs.hvac_action.replaceAll("_", " ")}</span>`
+                    : nothing}
+                </div>
+              </div>
+            </div>`}
         ${typeof target === "number"
           ? this._renderTemperatureControl(
               "Target",
@@ -261,36 +344,40 @@ export class ScheduledClimateCard extends LitElement {
             `,
           )}
         </div>
-        <div class="control-grid">
-          ${this._renderSelect("Preset", attrs.preset_mode, attrs.preset_modes, "set_preset_mode", "preset_mode")}
-          ${this._renderSelect("Fan", attrs.fan_mode, attrs.fan_modes, "set_fan_mode", "fan_mode")}
-          ${this._renderSelect("Swing", attrs.swing_mode, attrs.swing_modes, "set_swing_mode", "swing_mode")}
-          ${this._renderSelect(
-            "Horizontal swing",
-            attrs.swing_horizontal_mode,
-            attrs.swing_horizontal_modes,
-            "set_swing_horizontal_mode",
-            "swing_horizontal_mode",
-          )}
-          ${typeof attrs.humidity === "number"
-            ? html`
-                <label class="field">
-                  <span>Humidity</span>
-                  <input
-                    type="number"
-                    .value=${String(attrs.humidity)}
-                    min=${attrs.min_humidity ?? 30}
-                    max=${attrs.max_humidity ?? 99}
-                    ?disabled=${this._busy}
-                    @change=${(event: Event) =>
-                      this._call("climate", "set_humidity", {
-                        humidity: Number((event.target as HTMLInputElement).value),
-                      })}
-                  />
-                </label>
-              `
-            : nothing}
+        <div class="subsection-heading">
+          <div><h3>Preset & options</h3><p>${attrs.preset_mode?.replaceAll("_", " ") ?? "Climate settings"}</p></div>
+          ${this._renderCollapseButton("preset", "Preset and options", "preset-controls")}
         </div>
+        <div id="preset-controls" class="control-grid" ?hidden=${this._collapsed.preset}>
+              ${this._renderSelect("Preset", attrs.preset_mode, attrs.preset_modes, "set_preset_mode", "preset_mode")}
+              ${this._renderSelect("Fan", attrs.fan_mode, attrs.fan_modes, "set_fan_mode", "fan_mode")}
+              ${this._renderSelect("Swing", attrs.swing_mode, attrs.swing_modes, "set_swing_mode", "swing_mode")}
+              ${this._renderSelect(
+                "Horizontal swing",
+                attrs.swing_horizontal_mode,
+                attrs.swing_horizontal_modes,
+                "set_swing_horizontal_mode",
+                "swing_horizontal_mode",
+              )}
+              ${typeof attrs.humidity === "number"
+                ? html`
+                    <label class="field">
+                      <span>Humidity</span>
+                      <input
+                        type="number"
+                        .value=${String(attrs.humidity)}
+                        min=${attrs.min_humidity ?? 30}
+                        max=${attrs.max_humidity ?? 99}
+                        ?disabled=${this._busy}
+                        @change=${(event: Event) =>
+                          this._call("climate", "set_humidity", {
+                            humidity: Number((event.target as HTMLInputElement).value),
+                          })}
+                      />
+                    </label>
+                  `
+                : nothing}
+          </div>
       </section>
     `;
   }
@@ -322,8 +409,9 @@ export class ScheduledClimateCard extends LitElement {
             />
             <span>Enabled</span>
           </label>
+          ${this._renderCollapseButton("schedule", "Daily schedule", "schedule-controls")}
         </div>
-        <div class="schedule-grid">
+        <div id="schedule-controls" class="schedule-grid" ?hidden=${this._collapsed.schedule}>
           <label class="field"><span>On time</span><input type="time" .value=${this._onTime} @input=${(event: Event) => (this._onTime = (event.target as HTMLInputElement).value)} /></label>
           <label class="field"><span>Off time</span><input type="time" .value=${this._offTime} @input=${(event: Event) => (this._offTime = (event.target as HTMLInputElement).value)} /></label>
           <button class="primary" ?disabled=${this._busy} @click=${() => this._call("scheduled_climate", "update_schedule", {
@@ -367,7 +455,9 @@ export class ScheduledClimateCard extends LitElement {
           <ha-icon class="section-icon" icon="mdi:timer-outline"></ha-icon>
           <div class="section-copy"><h3 id="timer-heading">Timer</h3><p>${action && deadline ? `${action} at ${new Date(deadline).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "No active timer"}</p></div>
           ${action ? html`<button class="icon" title="Cancel timer" aria-label="Cancel timer" @click=${() => this._call("scheduled_climate", "cancel_timer")}><ha-icon icon="mdi:timer-off-outline"></ha-icon></button>` : nothing}
+          ${this._renderCollapseButton("timer", "Timer", "timer-controls")}
         </div>
+        <div id="timer-controls" class="collapsible-body" ?hidden=${this._collapsed.timer}>
         <div class="presets" aria-label="Timer presets">
           ${presets.map((minutes) => html`<button class=${this._timerMinutes === minutes ? "selected" : ""} @click=${() => (this._timerMinutes = minutes)}>${minutes < 60 ? `${minutes}m` : `${minutes / 60}h`}</button>`)}
           <label class="custom-time"><span>Minutes</span><input type="number" min="1" step="1" .value=${String(this._timerMinutes)} @input=${(event: Event) => (this._timerMinutes = Math.max(1, Number((event.target as HTMLInputElement).value)))} /></label>
@@ -375,6 +465,7 @@ export class ScheduledClimateCard extends LitElement {
         <div class="timer-actions">
           <button class="primary" ?disabled=${this._busy} @click=${() => this._startTimer("on")}><ha-icon icon="mdi:power"></ha-icon>Turn on later</button>
           <button ?disabled=${this._busy} @click=${() => this._startTimer("off")}><ha-icon icon="mdi:power-off"></ha-icon>Turn off later</button>
+        </div>
         </div>
       </section>
     `;
@@ -395,7 +486,7 @@ export class ScheduledClimateCard extends LitElement {
     const title = this._config.name ?? state.attributes.friendly_name ?? "Scheduled Climate";
 
     return html`
-      <ha-card class=${`state-${state.state}`}>
+      <ha-card class=${`state-${state.state} ${this._config.layout === "compact" ? "compact" : "standard"}`}>
         <header>
           <div class="title-block"><h2>${title}</h2><p>${unavailable ? "Unavailable" : state.state.replaceAll("_", " ")}</p></div>
           <button class="more-info icon" title="More information" aria-label="More information" @click=${this._showMoreInfo}>
@@ -443,6 +534,9 @@ export class ScheduledClimateCard extends LitElement {
     .dial-content { display: grid; justify-items: center; gap: 3px; }
     .current-label { color: var(--secondary-text-color); font-size: 12px; }
     .current { font-size: 48px; line-height: 1.05; font-weight: 400; font-variant-numeric: tabular-nums; }
+    .compact-status { display: flex; min-height: 52px; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 10px; }
+    .compact-status > div { display: grid; }
+    .compact-current { font-size: 30px; line-height: 1.1; font-weight: 400; font-variant-numeric: tabular-nums; }
     .action { display: flex; align-items: center; gap: 6px; color: var(--secondary-text-color); font-size: 12px; text-transform: capitalize; }
     .pulse { width: 7px; height: 7px; border-radius: 50%; background: var(--state-climate-heat-color, var(--primary-color)); }
     .number-control { display: grid; grid-template-columns: 44px minmax(80px, 1fr) 44px; align-items: center; max-width: 260px; margin: 0 auto; border: 1px solid var(--divider-color); border-radius: var(--ha-border-radius-pill, 999px); overflow: hidden; }
@@ -468,6 +562,9 @@ export class ScheduledClimateCard extends LitElement {
     input, select { box-sizing: border-box; min-width: 0; min-height: 40px; padding: 7px 10px; color: var(--primary-text-color); background: var(--card-background-color); border: 1px solid var(--divider-color); border-radius: var(--ha-border-radius-md, 8px); font: inherit; }
     input[type="checkbox"] { accent-color: var(--primary-color); }
     .section-heading { display: flex; align-items: center; gap: 12px; }
+    .subsection-heading { display: flex; align-items: center; gap: 12px; margin-top: 16px; }
+    .subsection-heading > div { min-width: 0; flex: 1; }
+    .subsection-heading p { margin-top: 3px; text-transform: capitalize; }
     .section-icon { --mdc-icon-size: 22px; flex: 0 0 auto; padding: 9px; border-radius: 50%; color: var(--feature-color); background: color-mix(in srgb, var(--feature-color) 12%, var(--card-background-color)); }
     .section-copy { min-width: 0; flex: 1; }
     .section-heading p { margin-top: 3px; }
@@ -475,11 +572,20 @@ export class ScheduledClimateCard extends LitElement {
     .schedule-grid .primary { align-self: end; }
     .icon { width: 40px; padding: 7px; }
     .icon ha-icon { margin: 0; }
+    .collapse-button { flex: 0 0 auto; border: 0; color: var(--secondary-text-color); background: transparent; }
+    [hidden] { display: none !important; }
     .custom-time { display: flex; align-items: center; gap: 6px; margin-left: auto; }
     .custom-time input { width: 68px; }
     .timer-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
     .message { padding: 10px 20px; border-top: 1px solid var(--divider-color); color: var(--secondary-text-color); font-size: 13px; }
     .empty { padding: 28px 20px; color: var(--secondary-text-color); text-align: center; }
+    ha-card.compact header { min-height: 44px; padding-block: 10px; }
+    ha-card.compact .climate { padding: 4px 16px 12px; }
+    ha-card.compact .modes { margin-top: 12px; }
+    ha-card.compact .subsection-heading { margin-top: 12px; }
+    ha-card.compact section:not(.climate) { padding: 12px 16px; }
+    ha-card.compact .control-grid, ha-card.compact .schedule-grid { margin-top: 10px; }
+    ha-card.compact .feature-buttons button { min-height: 44px; }
     @media (max-width: 420px) {
       header, section { padding: 16px; }
       .control-grid, .schedule-grid { grid-template-columns: 1fr; }
@@ -487,6 +593,7 @@ export class ScheduledClimateCard extends LitElement {
       .current { font-size: 42px; }
       .custom-time { margin-left: 0; }
       .range-target { grid-template-columns: 1fr; }
+      ha-card.compact .range-target { grid-template-columns: 1fr 1fr; }
       .presets { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); overflow-x: visible; }
       .presets > button { min-width: 0; padding-inline: 6px; }
       .custom-time { grid-column: 1 / -1; width: 100%; }

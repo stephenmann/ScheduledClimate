@@ -48,6 +48,7 @@ export interface ScheduledClimateCardConfig {
   type: "custom:scheduled-climate-card";
   entity: string;
   name?: string;
+  layout?: "standard" | "compact";
   show_schedule?: boolean;
   show_timer?: boolean;
   timer_presets?: number[];

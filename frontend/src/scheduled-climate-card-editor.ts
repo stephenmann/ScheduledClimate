@@ -65,6 +65,21 @@ export class ScheduledClimateCardEditor extends LitElement {
               this._setValue("name", (event.target as HTMLInputElement).value)}
           />
         </label>
+        <label>
+          Layout
+          <select
+            name="layout"
+            .value=${this._config.layout ?? "standard"}
+            @change=${(event: Event) =>
+              this._setValue(
+                "layout",
+                (event.target as HTMLSelectElement).value,
+              )}
+          >
+            <option value="standard">Standard</option>
+            <option value="compact">Compact</option>
+          </select>
+        </label>
         <label class="toggle">
           <input
             type="checkbox"
