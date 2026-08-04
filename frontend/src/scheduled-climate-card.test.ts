@@ -61,19 +61,22 @@ afterEach(() => {
 });
 
 describe("scheduled-climate-card", () => {
-  it("renders supported range and horizontal swing controls", async () => {
+  it("renders native-style range and horizontal swing controls", async () => {
     const { card, callService } = await renderCard();
     const range = card.shadowRoot!.querySelector<HTMLElement>(".range-target")!;
-    const inputs = range.querySelectorAll<HTMLInputElement>('input[type="number"]');
+    const controls = range.querySelectorAll<HTMLElement>(".number-control");
+    const decreaseLow = range.querySelector<HTMLButtonElement>(
+      'button[aria-label="Decrease low"]',
+    )!;
     const horizontalSwing = [...card.shadowRoot!.querySelectorAll("label")].find(
       (label) => label.textContent?.includes("Horizontal swing"),
     )!.querySelector("select")!;
 
-    expect(inputs).toHaveLength(2);
+    expect(card.shadowRoot!.querySelector(".thermostat")).not.toBeNull();
+    expect(controls).toHaveLength(2);
     expect(horizontalSwing.value).toBe("off");
 
-    inputs[0].value = "18.5";
-    inputs[0].dispatchEvent(new Event("change"));
+    decreaseLow.click();
     await vi.waitFor(() =>
       expect(callService).toHaveBeenCalledWith("climate", "set_temperature", {
         entity_id: ENTITY_ID,
@@ -91,6 +94,19 @@ describe("scheduled-climate-card", () => {
         { entity_id: ENTITY_ID, swing_horizontal_mode: "on" },
       ),
     );
+  });
+
+  it("opens native more information for the configured entity", async () => {
+    const { card } = await renderCard();
+    const listener = vi.fn();
+    card.addEventListener("hass-more-info", listener);
+
+    button(card, "").click();
+
+    expect(listener).toHaveBeenCalledOnce();
+    expect((listener.mock.calls[0][0] as CustomEvent).detail).toEqual({
+      entityId: ENTITY_ID,
+    });
   });
 
   it("dispatches schedule and timer services", async () => {
