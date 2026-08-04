@@ -1,5 +1,6 @@
 """Tests for Scheduled Climate frontend registration."""
 
+import asyncio
 from pathlib import Path
 from unittest.mock import AsyncMock, Mock
 
@@ -32,6 +33,33 @@ async def test_register_frontend_once() -> None:
     assert path_config.cache_headers is True
     url_manager.add.assert_called_once_with(CARD_URL)
     assert CARD_URL.startswith(f"{CARD_PATH}?v=")
+    assert hass.data[FRONTEND_REGISTERED] is True
+
+
+async def test_register_frontend_once_during_concurrent_entry_setup() -> None:
+    """Test concurrent config entries cannot register the route twice."""
+    registration_started = asyncio.Event()
+    allow_registration = asyncio.Event()
+
+    async def register_static_paths(_configs: list[StaticPathConfig]) -> None:
+        registration_started.set()
+        await allow_registration.wait()
+
+    hass = Mock()
+    hass.data = {}
+    hass.http.async_register_static_paths = AsyncMock(
+        side_effect=register_static_paths
+    )
+
+    registrations = [
+        asyncio.create_task(async_register_frontend(hass)) for _ in range(3)
+    ]
+    await registration_started.wait()
+    await asyncio.sleep(0)
+    allow_registration.set()
+    await asyncio.gather(*registrations)
+
+    hass.http.async_register_static_paths.assert_awaited_once()
     assert hass.data[FRONTEND_REGISTERED] is True
 
 
