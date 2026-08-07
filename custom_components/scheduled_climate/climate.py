@@ -113,10 +113,9 @@ async def async_setup_entry(
         target_object_id = target_entity_id.split(".", 1)[-1]
         registry.async_update_entity(
             wrapper_entity_id,
-            new_entity_id=registry.async_get_available_entity_id(
+            new_entity_id=registry.async_generate_entity_id(
                 CLIMATE_DOMAIN,
                 f"{target_object_id}_scheduled",
-                current_entity_id=wrapper_entity_id,
             ),
         )
     async_add_entities(
@@ -504,7 +503,7 @@ class ScheduledClimateEntity(ClimateEntity):
         await self.hass.services.async_call(
             CLIMATE_DOMAIN,
             service,
-            {ATTR_ENTITY_ID: self._target_entity_id, **data},
+            {**data, ATTR_ENTITY_ID: self._target_entity_id},
             blocking=True,
         )
 

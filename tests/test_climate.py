@@ -9,8 +9,10 @@ from homeassistant.components.climate import (
     ATTR_SWING_HORIZONTAL_MODE,
     ATTR_SWING_HORIZONTAL_MODES,
     ATTR_TEMPERATURE,
+    DATA_COMPONENT,
     SERVICE_SET_SWING_HORIZONTAL_MODE,
     SERVICE_SET_TEMPERATURE,
+    ClimateEntity,
     ClimateEntityFeature,
     HVACMode,
 )
@@ -26,6 +28,7 @@ from homeassistant.const import (
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import entity_registry as er
+from homeassistant.setup import async_setup_component
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.scheduled_climate.climate import ScheduledClimateEntity
@@ -52,6 +55,25 @@ from custom_components.scheduled_climate.const import (
 from custom_components.scheduled_climate.schedule import ScheduleManager
 
 TARGET_ENTITY_ID = "climate.living_room"
+
+
+class _TargetClimate(ClimateEntity):
+    """Minimal climate target for end-to-end service tests."""
+
+    _attr_name = "Living Room"
+    _attr_unique_id = "living-room-target"
+    _attr_hvac_mode = HVACMode.HEAT
+    _attr_hvac_modes = [HVACMode.OFF, HVACMode.HEAT]
+    _attr_temperature_unit = UnitOfTemperature.CELSIUS
+    _attr_target_temperature = 21.5
+    _attr_supported_features = ClimateEntityFeature.TARGET_TEMPERATURE
+
+    def __init__(self) -> None:
+        self.temperature_calls: list[dict[str, object]] = []
+
+    async def async_set_temperature(self, **kwargs: object) -> None:
+        """Record a target temperature service call."""
+        self.temperature_calls.append(kwargs)
 
 
 async def test_mirrors_state_and_forwards_temperature(hass: HomeAssistant) -> None:
@@ -427,6 +449,45 @@ async def test_forwards_climate_services(hass: HomeAssistant) -> None:
         ATTR_ENTITY_ID: TARGET_ENTITY_ID,
         ATTR_SWING_HORIZONTAL_MODE: "off",
     }
+
+
+async def test_temperature_service_end_to_end(hass: HomeAssistant) -> None:
+    """Test set temperature routes from the wrapper to its target once."""
+    assert await async_setup_component(hass, CLIMATE_DOMAIN, {})
+    target = _TargetClimate()
+    await hass.data[DATA_COMPONENT].async_add_entities([target])
+    assert target.entity_id == TARGET_ENTITY_ID
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Living Room Schedule",
+        data={CONF_TARGET_ENTITY_ID: TARGET_ENTITY_ID, "name": "Living Room"},
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    wrapper = next(
+        entity
+        for entity in er.async_get(hass).entities.values()
+        if entity.config_entry_id == entry.entry_id
+    )
+
+    await hass.services.async_call(
+        CLIMATE_DOMAIN,
+        SERVICE_SET_TEMPERATURE,
+        {
+            ATTR_ENTITY_ID: wrapper.entity_id,
+            ATTR_TEMPERATURE: 23,
+        },
+        blocking=True,
+    )
+
+    assert target.temperature_calls == [
+        {
+            ATTR_ENTITY_ID: [TARGET_ENTITY_ID],
+            ATTR_TEMPERATURE: 23.0,
+        }
+    ]
 
 
 async def test_rejects_forwarding_to_itself(hass: HomeAssistant) -> None:
