@@ -85,6 +85,7 @@ async def test_mirrors_state_and_forwards_temperature(hass: HomeAssistant) -> No
         for entity in registry.entities.values()
         if entity.config_entry_id == entry.entry_id
     )
+    assert wrapper.entity_id != TARGET_ENTITY_ID
     state = hass.states.get(wrapper.entity_id)
     assert state is not None
     assert state.state == HVACMode.HEAT
@@ -123,6 +124,40 @@ async def test_mirrors_state_and_forwards_temperature(hass: HomeAssistant) -> No
     state = hass.states.get(wrapper.entity_id)
     assert state is not None
     assert state.state == STATE_UNAVAILABLE
+
+
+async def test_migrates_wrapper_entity_id_matching_target(
+    hass: HomeAssistant,
+) -> None:
+    """Test a legacy wrapper ID matching its target is migrated on setup."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Living Room",
+        data={CONF_TARGET_ENTITY_ID: TARGET_ENTITY_ID, "name": "Living Room"},
+    )
+    entry.add_to_hass(hass)
+    registry = er.async_get(hass)
+    legacy_wrapper = registry.async_get_or_create(
+        CLIMATE_DOMAIN,
+        DOMAIN,
+        entry.entry_id,
+        suggested_object_id="living_room",
+        config_entry=entry,
+    )
+    assert legacy_wrapper.entity_id == TARGET_ENTITY_ID
+    hass.states.async_set(
+        TARGET_ENTITY_ID,
+        HVACMode.HEAT,
+        {ATTR_TEMPERATURE_UNIT: UnitOfTemperature.CELSIUS},
+    )
+
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert (
+        registry.async_get_entity_id(CLIMATE_DOMAIN, DOMAIN, entry.entry_id)
+        == "climate.living_room_scheduled"
+    )
 
 
 async def test_timer_services_update_wrapper_state(hass: HomeAssistant) -> None:
@@ -392,6 +427,28 @@ async def test_forwards_climate_services(hass: HomeAssistant) -> None:
         ATTR_ENTITY_ID: TARGET_ENTITY_ID,
         ATTR_SWING_HORIZONTAL_MODE: "off",
     }
+
+
+async def test_rejects_forwarding_to_itself(hass: HomeAssistant) -> None:
+    """Test a malformed self-target does not recursively forward services."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_TARGET_ENTITY_ID: TARGET_ENTITY_ID},
+    )
+    entity = ScheduledClimateEntity(
+        "entry",
+        "Living Room",
+        TARGET_ENTITY_ID,
+        ScheduleManager(hass, entry),
+    )
+    entity.hass = hass
+    entity.entity_id = TARGET_ENTITY_ID
+
+    with pytest.raises(
+        ServiceValidationError,
+        match="cannot use itself as its target entity",
+    ):
+        await entity.async_set_temperature(**{ATTR_TEMPERATURE: 23})
 
 
 async def test_follows_target_entity_rename(hass: HomeAssistant) -> None:

@@ -1,9 +1,9 @@
 Metadata-Version: 2.4
 Name: scheduled-climate
-Version: 0.3.0
+Version: 0.3.1
 Requires-Python: >=3.13
 License-File: LICENSE
-Requires-Dist: homeassistant>=2025.1.0
+Requires-Dist: homeassistant>=2026.1.0
 Provides-Extra: test
 Requires-Dist: pytest-homeassistant-custom-component>=0.13.200; extra == "test"
 Requires-Dist: pytest-cov>=6.0; extra == "test"

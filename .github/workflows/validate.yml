@@ -48,7 +48,7 @@ jobs:
       matrix:
         homeassistant:
           - name: Minimum
-            package: homeassistant==2025.1.0
+            package: homeassistant==2026.1.0
           - name: Latest
             package: homeassistant
     steps:

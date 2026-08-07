@@ -416,7 +416,7 @@ Resolved implementation decisions:
 4. An expired timer executes once after restart.
 5. An off action is skipped if the target does not support `off`.
 6. Schedule and timer diagnostics are wrapper entity attributes.
-7. The minimum supported Home Assistant version is 2025.1.
+7. The minimum supported Home Assistant version is 2026.1.
 8. The project uses the MIT License.
 9. The integration registers its content-versioned card module automatically.
 10. Default timer presets are 15, 30, 60, and 120 minutes.

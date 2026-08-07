@@ -2,7 +2,7 @@
 
 Scheduled Climate is a Home Assistant custom integration that wraps an existing climate entity with a recurring daily schedule, persistent one-shot timers, and a matching dashboard card.
 
-Requires Home Assistant 2025.1 or newer. Local integration branding is available on Home Assistant 2026.3 or newer.
+Requires Home Assistant 2026.1 or newer. Local integration branding is available on Home Assistant 2026.3 or newer.
 
 ## Installation
 
@@ -68,7 +68,7 @@ Timer start services require a positive `duration`. Schedule updates require `sc
 Backend validation runs on Linux because Home Assistant requires POSIX modules unavailable in native Windows test runs:
 
 ```powershell
-docker run --rm -v "${PWD}:/workspace" -w /workspace python:3.13-bookworm sh -c "set -e; pip install 'homeassistant>=2025.1.0' 'pytest-homeassistant-custom-component>=0.13.200' 'pytest-cov>=6.0' --quiet; python -m pytest -q"
+docker run --rm -v "${PWD}:/workspace" -w /workspace python:3.13-bookworm sh -c "set -e; pip install 'homeassistant>=2026.1.0' 'pytest-homeassistant-custom-component>=0.13.200' 'pytest-cov>=6.0' --quiet; python -m pytest -q"
 ```
 
 Build the card from `frontend`:

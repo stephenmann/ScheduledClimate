@@ -58,6 +58,7 @@ from homeassistant.core import (
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import entity_platform
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_registry import EventEntityRegistryUpdatedData
 from homeassistant.helpers.event import (
     async_track_entity_registry_updated_event,
@@ -103,12 +104,27 @@ async def async_setup_entry(
 ) -> None:
     """Set up a Scheduled Climate entity."""
     manager: ScheduleManager = hass.data[DOMAIN][entry.entry_id]
+    target_entity_id: str = entry.data[CONF_TARGET_ENTITY_ID]
+    registry = er.async_get(hass)
+    wrapper_entity_id = registry.async_get_entity_id(
+        CLIMATE_DOMAIN, DOMAIN, entry.entry_id
+    )
+    if wrapper_entity_id is not None and wrapper_entity_id == target_entity_id:
+        target_object_id = target_entity_id.split(".", 1)[-1]
+        registry.async_update_entity(
+            wrapper_entity_id,
+            new_entity_id=registry.async_get_available_entity_id(
+                CLIMATE_DOMAIN,
+                f"{target_object_id}_scheduled",
+                current_entity_id=wrapper_entity_id,
+            ),
+        )
     async_add_entities(
         [
             ScheduledClimateEntity(
                 entry.entry_id,
                 entry.title,
-                entry.data[CONF_TARGET_ENTITY_ID],
+                target_entity_id,
                 manager,
             )
         ]
@@ -171,6 +187,12 @@ class ScheduledClimateEntity(ClimateEntity):
         self._target_state: State | None = None
         self._unsub_target_registry: Callable[[], None] | None = None
         self._unsub_target_state: Callable[[], None] | None = None
+
+    @property
+    def suggested_object_id(self) -> str:
+        """Return an entity ID suggestion distinct from the target."""
+        target_object_id = self._target_entity_id.split(".", 1)[-1]
+        return f"{target_object_id}_scheduled"
 
     async def async_added_to_hass(self) -> None:
         """Start tracking the target entity."""
@@ -475,6 +497,10 @@ class ScheduledClimateEntity(ClimateEntity):
 
     async def _async_forward(self, service: str, data: dict[str, Any]) -> None:
         """Forward a climate service call to the target entity."""
+        if self.entity_id == self._target_entity_id:
+            raise ServiceValidationError(
+                "Scheduled Climate cannot use itself as its target entity"
+            )
         await self.hass.services.async_call(
             CLIMATE_DOMAIN,
             service,
