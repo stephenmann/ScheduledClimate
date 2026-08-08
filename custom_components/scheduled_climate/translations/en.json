@@ -28,19 +28,34 @@
   "options": {
     "step": {
       "init": {
-        "title": "Daily schedule",
-        "description": "Configure recurring daily on and off actions.",
+        "title": "Schedule",
+        "description": "Link a schedule helper and choose how its blocks are applied.",
         "data": {
-          "schedule_enabled": "Enable daily schedule",
-          "on_time": "On time",
-          "off_time": "Off time",
-          "default_hvac_mode": "Default on mode"
+          "schedule_entity_id": "Schedule helper",
+          "schedule_enabled": "Apply the schedule",
+          "default_hvac_mode": "Default on mode",
+          "off_behavior": "When no block is active",
+          "apply_on_start": "Apply the active block on startup"
         }
       }
     },
     "error": {
-      "schedule_time_required": "Set at least one action time before enabling the schedule",
-      "schedule_times_equal": "On and off times must be different"
+      "schedule_entity_required": "Select a schedule helper before enabling the schedule",
+      "schedule_not_found": "The selected schedule helper does not exist"
+    }
+  },
+  "issues": {
+    "schedule_not_linked": {
+      "title": "Scheduled Climate needs a schedule helper",
+      "description": "{name} used the old daily on and off times. Create a schedule helper with your desired blocks and link it from the Scheduled Climate card or the integration options."
+    },
+    "schedule_missing": {
+      "title": "Linked schedule helper is missing",
+      "description": "{name} is linked to {entity_id}, which no longer exists. Link a different schedule helper from the integration options."
+    },
+    "block_unsupported": {
+      "title": "Schedule block cannot be applied",
+      "description": "The active schedule block for {name} could not be fully applied: {issues}"
     }
   },
   "selector": {
@@ -52,6 +67,12 @@
         "fan_only": "Fan only",
         "heat": "Heat",
         "heat_cool": "Heat/Cool"
+      }
+    },
+    "off_behavior": {
+      "options": {
+        "turn_off": "Turn the climate entity off",
+        "ignore": "Leave the climate entity unchanged"
       }
     }
   }

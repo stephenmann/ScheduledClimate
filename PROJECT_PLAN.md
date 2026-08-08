@@ -10,9 +10,9 @@ Initial release features:
 2. Timer-based turn on and turn off.
 3. Custom dashboard climate card for standard controls, schedules, and timers.
 
-Planned for a later release:
+Delivered in 0.4.0 (see `SCHEDULE_PLAN.md`):
 
-4. Day-of-week scheduling.
+4. Day-of-week scheduling with multiple blocks per day, built on the Home Assistant schedule helper.
 
 ## 2. Goals
 
@@ -30,8 +30,8 @@ Planned for a later release:
 
 ## 3. Non-Goals for the Initial Release
 
-- Day-specific or weekday/weekend schedules.
-- Multiple schedule periods per day.
+- Day-specific or weekday/weekend schedules. *(Delivered in 0.4.0.)*
+- Multiple schedule periods per day. *(Delivered in 0.4.0.)*
 - Calendar-based schedules, holidays, or exceptions.
 - Weather-, occupancy-, presence-, or energy-price-based automation.
 - Direct communication with HVAC hardware or vendor cloud APIs.
@@ -234,29 +234,19 @@ A per-config-entry runtime data object should own unsubscribe callbacks and time
 - Timer state survives restart according to the expired-timer decision in Section 4.
 - Invalid, zero, or negative durations are rejected.
 
-## 9. Future Day-of-Week Scheduling
+## 9. Day-of-Week Scheduling
 
-Design the schedule model so the initial daily schedule can later gain a set of weekdays without changing the service or entity architecture.
+Delivered in 0.4.0 by `SCHEDULE_PLAN.md`, which supersedes the design sketched here.
 
-Recommended future schedule representation:
+Instead of extending the built-in daily schedule with a weekday set, the integration now links each wrapper to a Home Assistant **schedule** helper and reads climate settings from each block's custom data. This provides weekday selection, multiple blocks per day, per-block setpoints, and a native editing surface without a bespoke schedule model.
 
-```text
-schedule:
-  enabled: true
-  weekdays: [mon, tue, wed, thu, fri]
-  on_time: "06:30:00"
-  off_time: "22:00:00"
-```
+Delivered acceptance criteria:
 
-For the initial release, an omitted weekday set means every day. Do not expose weekday controls in the initial UI or claim support until the behavior, migration, translations, and tests are implemented.
-
-Future acceptance criteria:
-
-- Users can select any combination of weekdays.
-- Only selected local calendar days trigger actions.
-- Existing daily schedules migrate to all seven days.
-- Daylight-saving transitions behave predictably.
-- The options flow displays localized weekday names.
+- Users can define any combination of days and any number of blocks per day.
+- Only the active block's settings are applied, and the HVAC mode is applied before setpoints.
+- Config entries migrate from v1 to v2; the previous daily times are preserved and a repair issue guides the one-click conversion.
+- Daylight-saving transitions are handled by the schedule helper.
+- The options flow and card display localized day names.
 
 ## 10. Reliability and Edge Cases
 
@@ -379,10 +369,7 @@ Use `pytest-homeassistant-custom-component` and Home Assistant test helpers.
 
 ### Later Phase - Weekday Scheduling
 
-- Add weekday selection and storage migration.
-- Update callback calculation and options UI.
-- Add translations, documentation, and weekday/DST tests.
-- Release as a backward-compatible feature update.
+- Delivered in 0.4.0 through the Home Assistant schedule helper; see `SCHEDULE_PLAN.md`.
 
 ## 15. Initial Release Acceptance Criteria
 
@@ -392,19 +379,18 @@ Version `1.0.0` is complete when:
 - A user can add, update, reload, and remove it through the Home Assistant UI.
 - The wrapper exposes and correctly forwards the target's standard supported climate controls.
 - Target state changes appear promptly on the wrapper.
-- A user can configure daily on and off times, and actions run once at the expected local times.
+- A user can configure a weekly schedule of climate blocks, and each block is applied at the expected local times.
 - A user can start and cancel one-shot on and off timers from services.
 - The same HACS installation provides `custom:scheduled-climate-card` without a separate frontend download.
 - A user can add and configure the card through the Lovelace visual editor.
 - The card provides all standard controls supported by the wrapper entity and does not show unsupported controls.
-- A user can view and edit the daily schedule, start on/off timers, inspect active timer status, and cancel a timer from the card.
+- A user can view and edit the weekly schedule, start on/off timers, inspect active timer status, and cancel a timer from the card.
 - The card is responsive, keyboard accessible, theme-aware, and handles unavailable entities and failed commands clearly.
 - Schedule settings and pending timer deadlines survive restart as specified.
 - Unavailable targets and service failures do not crash the integration.
 - Reloading or removing an entry leaves no active callbacks.
 - Automated tests and repository validation checks pass.
 - Documentation describes installation, configuration, services, behavior, limitations, and recovery steps.
-- Weekday scheduling is documented only as planned work, not as an available feature.
 
 ## 16. Open Questions
 

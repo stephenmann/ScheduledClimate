@@ -24,24 +24,69 @@ export interface HassEntity {
     target_temp_step?: number;
     min_humidity?: number;
     max_humidity?: number;
+    supported_features?: number;
     schedule_enabled?: boolean;
-    schedule_on_time?: string | null;
-    schedule_off_time?: string | null;
-    next_schedule_action?: string | null;
-    next_schedule_time?: string | null;
+    schedule_entity_id?: string | null;
+    schedule_id?: string | null;
+    schedule_active?: boolean;
+    active_schedule_block?: ScheduleBlockData | null;
+    next_schedule_event?: string | null;
+    schedule_issues?: string[];
+    legacy_schedule?: { on_time: string; off_time: string } | null;
     timer_action?: string | null;
     timer_deadline?: string | null;
   };
 }
 
+export interface ScheduleBlockData {
+  hvac_mode?: string | null;
+  temperature?: number | null;
+  target_temp_low?: number | null;
+  target_temp_high?: number | null;
+  fan_mode?: string | null;
+  humidity?: number | null;
+}
+
+export const SCHEDULE_DAYS = [
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+  "sunday",
+] as const;
+
+export type ScheduleDay = (typeof SCHEDULE_DAYS)[number];
+
+export interface ScheduleTimeRange {
+  from: string;
+  to: string;
+  data?: Record<string, string | number | boolean>;
+}
+
+export type ScheduleItem = {
+  id: string;
+  name: string;
+  icon?: string;
+} & Partial<Record<ScheduleDay, ScheduleTimeRange[]>>;
+
 export interface HomeAssistant {
   states: Record<string, HassEntity>;
+  user?: { is_admin?: boolean };
   callService(
     domain: string,
     service: string,
     data?: Record<string, unknown>,
     target?: Record<string, unknown>,
   ): Promise<unknown>;
+  callWS<T>(message: Record<string, unknown>): Promise<T>;
+  connection?: {
+    subscribeMessage<T>(
+      callback: (message: T) => void,
+      message: Record<string, unknown>,
+    ): Promise<() => void>;
+  };
 }
 
 export interface ScheduledClimateCardConfig {
@@ -51,6 +96,8 @@ export interface ScheduledClimateCardConfig {
   layout?: "standard" | "compact";
   show_schedule?: boolean;
   show_timer?: boolean;
+  schedule_editable?: boolean;
+  default_schedule_day?: ScheduleDay;
   timer_presets?: number[];
 }
 

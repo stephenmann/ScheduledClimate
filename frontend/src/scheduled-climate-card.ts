@@ -1,7 +1,29 @@
 import { LitElement, css, html, nothing } from "lit";
 import "./scheduled-climate-card-editor";
-import type { HassEntity, HomeAssistant, ScheduledClimateCardConfig } from "./types";
-import { DEFAULT_PRESETS } from "./types";
+import type {
+  HassEntity,
+  HomeAssistant,
+  ScheduleDay,
+  ScheduleItem,
+  ScheduleTimeRange,
+  ScheduledClimateCardConfig,
+} from "./types";
+import { DEFAULT_PRESETS, SCHEDULE_DAYS } from "./types";
+import type { BlockDraft } from "./schedule";
+import {
+  DAY_LABELS,
+  blocksFromLegacy,
+  buildUpdateMessage,
+  describeBlock,
+  draftToTimeRange,
+  emptyDraft,
+  shortTime,
+  sortBlocks,
+  timeRangeToDraft,
+  todayDay,
+  validateDraft,
+  withDayBlocks,
+} from "./schedule";
 
 declare global {
   interface Window {
@@ -20,22 +42,25 @@ export class ScheduledClimateCard extends LitElement {
     _config: { state: true },
     _busy: { state: true },
     _message: { state: true },
-    _scheduleEnabled: { state: true },
-    _onTime: { state: true },
-    _offTime: { state: true },
     _timerMinutes: { state: true },
     _collapsed: { state: true },
+    _schedule: { state: true },
+    _selectedDay: { state: true },
+    _draft: { state: true },
+    _scheduleError: { state: true },
   };
 
   hass?: HomeAssistant;
   private _config?: ScheduledClimateCardConfig;
   private _busy = false;
   private _message = "";
-  private _scheduleEnabled = false;
-  private _onTime = "";
-  private _offTime = "";
   private _timerMinutes = 30;
-  private _scheduleSignature = "";
+  private _schedule?: ScheduleItem;
+  private _selectedDay: ScheduleDay = todayDay();
+  private _draft?: BlockDraft;
+  private _scheduleError = "";
+  private _loadedScheduleId = "";
+  private _unsubscribeSchedules?: () => void;
   private _collapsed: CollapseState = {
     preset: false,
     schedule: false,
@@ -53,6 +78,7 @@ export class ScheduledClimateCard extends LitElement {
       layout: "standard",
       show_schedule: true,
       show_timer: true,
+      schedule_editable: true,
       timer_presets: DEFAULT_PRESETS,
     };
   }
@@ -63,9 +89,11 @@ export class ScheduledClimateCard extends LitElement {
       layout: "standard",
       show_schedule: true,
       show_timer: true,
+      schedule_editable: true,
       timer_presets: DEFAULT_PRESETS,
       ...config,
     };
+    this._selectedDay = this._config.default_schedule_day ?? todayDay();
     this._collapsed = this._loadCollapseState(config.entity);
   }
 
@@ -73,29 +101,62 @@ export class ScheduledClimateCard extends LitElement {
     return 7;
   }
 
+  disconnectedCallback(): void {
+    super.disconnectedCallback();
+    this._unsubscribeSchedules?.();
+    this._unsubscribeSchedules = undefined;
+    this._loadedScheduleId = "";
+  }
+
   protected willUpdate(): void {
-    const state = this._state;
-    if (!state) return;
-    const attrs = state.attributes;
-    const signature = [
-      attrs.schedule_enabled,
-      attrs.schedule_on_time,
-      attrs.schedule_off_time,
-    ].join("|");
-    if (signature !== this._scheduleSignature) {
-      this._scheduleSignature = signature;
-      this._scheduleEnabled = Boolean(attrs.schedule_enabled);
-      this._onTime = this._shortTime(attrs.schedule_on_time);
-      this._offTime = this._shortTime(attrs.schedule_off_time);
+    const scheduleId = this._state?.attributes.schedule_id ?? "";
+    if (scheduleId !== this._loadedScheduleId) {
+      this._loadedScheduleId = scheduleId;
+      this._schedule = undefined;
+      this._draft = undefined;
+      if (scheduleId) void this._subscribeSchedules();
+    }
+  }
+
+  private get _isAdmin(): boolean {
+    return this.hass?.user?.is_admin === true;
+  }
+
+  private get _canEditSchedule(): boolean {
+    return this._isAdmin && this._config?.schedule_editable !== false;
+  }
+
+  private async _subscribeSchedules(): Promise<void> {
+    this._unsubscribeSchedules?.();
+    this._unsubscribeSchedules = undefined;
+    await this._loadSchedules();
+    if (!this.hass?.connection) return;
+    try {
+      this._unsubscribeSchedules = await this.hass.connection.subscribeMessage(
+        () => void this._loadSchedules(),
+        { type: "schedule/subscribe" },
+      );
+    } catch {
+      // Live updates are optional; the card still reloads after its own edits.
+    }
+  }
+
+  private async _loadSchedules(): Promise<void> {
+    const scheduleId = this._state?.attributes.schedule_id;
+    if (!this.hass || !scheduleId) return;
+    try {
+      const items = await this.hass.callWS<ScheduleItem[]>({
+        type: "schedule/list",
+      });
+      this._schedule = items.find((item) => item.id === scheduleId);
+    } catch (error) {
+      this._scheduleError =
+        error instanceof Error ? error.message : "Unable to load the schedule";
     }
   }
 
   private get _state(): HassEntity | undefined {
     return this._config && this.hass?.states[this._config.entity];
-  }
-
-  private _shortTime(value?: string | null): string {
-    return value ? value.slice(0, 5) : "";
   }
 
   private _storageKey(entityId: string): string {
@@ -383,65 +444,281 @@ export class ScheduledClimateCard extends LitElement {
   }
 
   private _renderSchedule(state: HassEntity) {
-    const nextAction = this._scheduleEnabled
-      ? state.attributes.next_schedule_action
-      : null;
-    const nextTime = this._scheduleEnabled
-      ? state.attributes.next_schedule_time
-      : null;
+    const nextEvent = state.attributes.next_schedule_event;
+    const scheduleId = state.attributes.schedule_id;
+    const caption = !scheduleId
+      ? "No schedule linked"
+      : nextEvent
+        ? `Next change · ${new Date(nextEvent).toLocaleString()}`
+        : state.attributes.schedule_enabled
+          ? "No upcoming change"
+          : "Schedule paused";
+
     return html`
       <section aria-labelledby="schedule-heading">
         <div class="section-heading">
           <ha-icon class="section-icon" icon="mdi:calendar-clock"></ha-icon>
           <div class="section-copy">
-            <h3 id="schedule-heading">Daily schedule</h3>
-            <p>${nextAction && nextTime ? `Next ${nextAction} · ${new Date(nextTime).toLocaleString()}` : "No action scheduled"}</p>
+            <h3 id="schedule-heading">Schedule</h3>
+            <p>${caption}</p>
           </div>
-          <label class="switch">
-            <input
-              type="checkbox"
-              .checked=${this._scheduleEnabled}
-              ?disabled=${this._busy}
-              @change=${(event: Event) =>
-                this._scheduleEnabledChanged(
-                  (event.target as HTMLInputElement).checked,
-                )}
-            />
-            <span>Enabled</span>
-          </label>
-          ${this._renderCollapseButton("schedule", "Daily schedule", "schedule-controls")}
+          ${this._renderCollapseButton("schedule", "Schedule", "schedule-controls")}
         </div>
-        <div id="schedule-controls" class="schedule-grid" ?hidden=${this._collapsed.schedule}>
-          <label class="field"><span>On time</span><input type="time" .value=${this._onTime} @input=${(event: Event) => (this._onTime = (event.target as HTMLInputElement).value)} /></label>
-          <label class="field"><span>Off time</span><input type="time" .value=${this._offTime} @input=${(event: Event) => (this._offTime = (event.target as HTMLInputElement).value)} /></label>
-          <button class="primary" ?disabled=${this._busy} @click=${() => this._call("scheduled_climate", "update_schedule", {
-            schedule_enabled: this._scheduleEnabled,
-            on_time: this._onTime || null,
-            off_time: this._offTime || null,
-          })}><ha-icon icon="mdi:content-save-outline"></ha-icon>Save</button>
+        <div id="schedule-controls" class="collapsible-body" ?hidden=${this._collapsed.schedule}>
+          ${scheduleId ? this._renderScheduleEditor(state) : this._renderScheduleLink(state)}
+          ${this._scheduleError ? html`<p class="error" role="alert">${this._scheduleError}</p>` : nothing}
         </div>
       </section>
     `;
   }
 
-  private async _scheduleEnabledChanged(enabled: boolean): Promise<void> {
-    const previousOnTime = this._onTime;
-    const previousOffTime = this._offTime;
-    this._scheduleEnabled = enabled;
-    if (enabled) return;
+  private _renderScheduleLink(state: HassEntity) {
+    const legacy = state.attributes.legacy_schedule;
+    if (!this._canEditSchedule) {
+      return html`<p class="caption">Link a schedule helper from the integration options to control this entity on a weekly plan.</p>`;
+    }
+    return html`
+      <p class="caption">
+        ${legacy
+          ? `Your old daily times (${shortTime(legacy.on_time)} – ${shortTime(legacy.off_time)}) can be converted into a weekly schedule.`
+          : "Create a schedule helper to control this entity on a weekly plan."}
+      </p>
+      <div class="timer-actions">
+        <button class="primary" ?disabled=${this._busy} @click=${() => this._createSchedule()}>
+          <ha-icon icon="mdi:calendar-plus"></ha-icon>Create schedule
+        </button>
+      </div>
+    `;
+  }
 
-    this._onTime = "";
-    this._offTime = "";
-    if (
-      !(await this._call("scheduled_climate", "update_schedule", {
-        schedule_enabled: false,
-        on_time: null,
-        off_time: null,
-      }))
-    ) {
-      this._scheduleEnabled = true;
-      this._onTime = previousOnTime;
-      this._offTime = previousOffTime;
+  private _renderScheduleEditor(state: HassEntity) {
+    if (!this._schedule) {
+      return html`<p class="caption">Loading the linked schedule…</p>`;
+    }
+    const blocks = sortBlocks(this._schedule[this._selectedDay] ?? []);
+    return html`
+      <div class="day-chips" role="tablist" aria-label="Days of the week">
+        ${SCHEDULE_DAYS.map(
+          (day) => html`
+            <button
+              role="tab"
+              aria-selected=${day === this._selectedDay}
+              class=${day === this._selectedDay ? "selected" : ""}
+              @click=${() => this._selectDay(day)}
+            >
+              ${DAY_LABELS[day]}
+            </button>
+          `,
+        )}
+      </div>
+      <ul class="block-list">
+        ${blocks.length === 0
+          ? html`<li class="caption">No blocks on ${DAY_LABELS[this._selectedDay]}</li>`
+          : blocks.map(
+              (block, index) => html`
+                <li class="block">
+                  <div class="block-copy">
+                    <span>${shortTime(block.from)} – ${shortTime(block.to)}</span>
+                    <small>${describeBlock(block)}</small>
+                  </div>
+                  ${this._canEditSchedule
+                    ? html`
+                        <button class="icon" title="Edit block" aria-label="Edit block" @click=${() => (this._draft = timeRangeToDraft(block, index))}>
+                          <ha-icon icon="mdi:pencil-outline"></ha-icon>
+                        </button>
+                        <button class="icon" title="Duplicate block" aria-label="Duplicate block" @click=${() => this._duplicateBlock(index)}>
+                          <ha-icon icon="mdi:content-duplicate"></ha-icon>
+                        </button>
+                        <button class="icon" title="Delete block" aria-label="Delete block" @click=${() => this._deleteBlock(index)}>
+                          <ha-icon icon="mdi:delete-outline"></ha-icon>
+                        </button>
+                      `
+                    : nothing}
+                </li>
+              `,
+            )}
+      </ul>
+      ${this._canEditSchedule
+        ? html`
+            <div class="timer-actions">
+              <button class="primary" ?disabled=${this._busy} @click=${() => (this._draft = emptyDraft())}>
+                <ha-icon icon="mdi:plus"></ha-icon>Add block
+              </button>
+              <label class="custom-time">
+                <span>Copy to</span>
+                <select
+                  ?disabled=${this._busy}
+                  .value=${""}
+                  @change=${(event: Event) => this._copyDay(event.target as HTMLSelectElement)}
+                >
+                  <option value="">Select a day</option>
+                  ${SCHEDULE_DAYS.filter((day) => day !== this._selectedDay).map(
+                    (day) => html`<option value=${day}>${DAY_LABELS[day]}</option>`,
+                  )}
+                </select>
+              </label>
+            </div>
+            ${this._draft ? this._renderDraft(state, this._draft) : nothing}
+          `
+        : html`<p class="caption">Only administrators can change this schedule.</p>`}
+    `;
+  }
+
+  private _renderDraft(state: HassEntity, draft: BlockDraft) {
+    const attrs = state.attributes;
+    const features = attrs.supported_features ?? 0;
+    const update = (patch: Partial<BlockDraft>): void => {
+      this._draft = { ...(this._draft ?? draft), ...patch };
+    };
+    const text = (event: Event): string => (event.target as HTMLInputElement).value;
+
+    return html`
+      <div class="schedule-grid">
+        <label class="field"><span>From</span><input type="time" .value=${draft.from} @input=${(event: Event) => update({ from: text(event) })} /></label>
+        <label class="field"><span>To</span><input type="time" .value=${draft.to} @input=${(event: Event) => update({ to: text(event) })} /></label>
+        <label class="field">
+          <span>Mode</span>
+          <select .value=${draft.hvac_mode} @change=${(event: Event) => update({ hvac_mode: text(event) })}>
+            <option value="">Unchanged</option>
+            ${(attrs.hvac_modes ?? []).map(
+              (mode) => html`<option value=${mode} ?selected=${mode === draft.hvac_mode}>${mode.replaceAll("_", " ")}</option>`,
+            )}
+          </select>
+        </label>
+        ${features & 8 && (attrs.fan_modes ?? []).length > 0
+          ? html`
+              <label class="field">
+                <span>Fan</span>
+                <select .value=${draft.fan_mode} @change=${(event: Event) => update({ fan_mode: text(event) })}>
+                  <option value="">Unchanged</option>
+                  ${(attrs.fan_modes ?? []).map(
+                    (mode) => html`<option value=${mode} ?selected=${mode === draft.fan_mode}>${mode}</option>`,
+                  )}
+                </select>
+              </label>
+            `
+          : nothing}
+        ${features & 1
+          ? html`<label class="field"><span>Temperature</span><input type="number" min=${attrs.min_temp ?? 7} max=${attrs.max_temp ?? 35} step=${attrs.target_temp_step ?? 0.5} .value=${draft.temperature} @input=${(event: Event) => update({ temperature: text(event) })} /></label>`
+          : nothing}
+        ${features & 2
+          ? html`
+              <label class="field"><span>Low</span><input type="number" min=${attrs.min_temp ?? 7} max=${attrs.max_temp ?? 35} step=${attrs.target_temp_step ?? 0.5} .value=${draft.target_temp_low} @input=${(event: Event) => update({ target_temp_low: text(event) })} /></label>
+              <label class="field"><span>High</span><input type="number" min=${attrs.min_temp ?? 7} max=${attrs.max_temp ?? 35} step=${attrs.target_temp_step ?? 0.5} .value=${draft.target_temp_high} @input=${(event: Event) => update({ target_temp_high: text(event) })} /></label>
+            `
+          : nothing}
+        ${features & 4
+          ? html`<label class="field"><span>Humidity</span><input type="number" min=${attrs.min_humidity ?? 30} max=${attrs.max_humidity ?? 99} step="1" .value=${draft.humidity} @input=${(event: Event) => update({ humidity: text(event) })} /></label>`
+          : nothing}
+        <div class="timer-actions">
+          <button class="primary" ?disabled=${this._busy} @click=${() => this._saveDraft()}><ha-icon icon="mdi:content-save-outline"></ha-icon>Save block</button>
+          <button ?disabled=${this._busy} @click=${() => (this._draft = undefined)}>Cancel</button>
+        </div>
+      </div>
+    `;
+  }
+
+  private _selectDay(day: ScheduleDay): void {
+    this._selectedDay = day;
+    this._draft = undefined;
+    this._scheduleError = "";
+  }
+
+  private _dayBlocks(): ScheduleTimeRange[] {
+    return sortBlocks(this._schedule?.[this._selectedDay] ?? []);
+  }
+
+  private async _saveDraft(): Promise<void> {
+    const draft = this._draft;
+    if (!this._schedule || !draft) return;
+
+    const blocks = this._dayBlocks();
+    const error = validateDraft(draft, blocks);
+    if (error) {
+      this._scheduleError = error;
+      return;
+    }
+
+    const next = [...blocks];
+    if (draft.index === null) next.push(draftToTimeRange(draft));
+    else next[draft.index] = draftToTimeRange(draft);
+
+    if (await this._writeSchedule(withDayBlocks(this._schedule, this._selectedDay, next))) {
+      this._draft = undefined;
+    }
+  }
+
+  private async _duplicateBlock(index: number): Promise<void> {
+    if (!this._schedule) return;
+    const blocks = this._dayBlocks();
+    const source = blocks[index];
+    if (!source) return;
+    this._draft = { ...timeRangeToDraft(source, index), index: null };
+    this._scheduleError = "";
+  }
+
+  private async _deleteBlock(index: number): Promise<void> {
+    if (!this._schedule) return;
+    const next = this._dayBlocks().filter((_, position) => position !== index);
+    this._draft = undefined;
+    await this._writeSchedule(withDayBlocks(this._schedule, this._selectedDay, next));
+  }
+
+  private async _copyDay(select: HTMLSelectElement): Promise<void> {
+    const target = select.value as ScheduleDay | "";
+    select.value = "";
+    if (!this._schedule || !target) return;
+    await this._writeSchedule(
+      withDayBlocks(this._schedule, target, this._dayBlocks()),
+    );
+  }
+
+  private async _writeSchedule(next: ScheduleItem): Promise<boolean> {
+    if (!this.hass || this._busy) return false;
+    this._busy = true;
+    this._scheduleError = "";
+    this._message = "";
+    try {
+      await this.hass.callWS(buildUpdateMessage(next));
+      this._schedule = next;
+      this._message = "Saved";
+      return true;
+    } catch (error) {
+      this._scheduleError =
+        error instanceof Error ? error.message : "Unable to save the schedule";
+      return false;
+    } finally {
+      this._busy = false;
+    }
+  }
+
+  private async _createSchedule(): Promise<void> {
+    const state = this._state;
+    if (!this.hass || !state || this._busy) return;
+
+    const blocks = blocksFromLegacy(state.attributes.legacy_schedule);
+    const message: Record<string, unknown> = {
+      type: "schedule/create",
+      name: this._config?.name ?? state.attributes.friendly_name ?? "Scheduled Climate",
+    };
+    for (const day of SCHEDULE_DAYS) message[day] = blocks;
+
+    this._busy = true;
+    this._scheduleError = "";
+    let created: ScheduleItem | undefined;
+    try {
+      created = await this.hass.callWS<ScheduleItem>(message);
+    } catch (error) {
+      this._scheduleError =
+        error instanceof Error ? error.message : "Unable to create the schedule";
+    } finally {
+      this._busy = false;
+    }
+
+    if (created) {
+      await this._call("scheduled_climate", "link_schedule", {
+        schedule_id: created.id,
+      });
     }
   }
 
@@ -559,6 +836,15 @@ export class ScheduledClimateCard extends LitElement {
     .feature-buttons button ha-icon { --mdc-icon-size: 20px; margin: 0; }
     .control-grid, .schedule-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 16px; padding: 12px; border-radius: var(--ha-border-radius-lg, 12px); background: var(--secondary-background-color, color-mix(in srgb, var(--primary-text-color) 5%, var(--card-background-color))); }
     .field { display: grid; gap: 5px; }
+    .day-chips { display: flex; gap: 6px; overflow-x: auto; margin-top: 12px; padding-bottom: 2px; scrollbar-width: thin; }
+    .day-chips button { flex: 1 0 auto; min-width: 48px; padding: 8px 10px; }
+    .block-list { display: grid; gap: 8px; margin: 12px 0 0; padding: 0; list-style: none; }
+    .block { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid var(--divider-color); border-radius: var(--ha-border-radius-lg, 12px); }
+    .block-copy { display: grid; flex: 1 1 auto; min-width: 0; gap: 2px; }
+    .block-copy span { font-variant-numeric: tabular-nums; }
+    .block-copy small { color: var(--secondary-text-color); font-size: 12px; text-transform: capitalize; }
+    .block .icon { min-height: 36px; padding: 6px; }
+    .error { margin-top: 12px; color: var(--error-color, #db4437); font-size: 12px; }
     input, select { box-sizing: border-box; min-width: 0; min-height: 40px; padding: 7px 10px; color: var(--primary-text-color); background: var(--card-background-color); border: 1px solid var(--divider-color); border-radius: var(--ha-border-radius-md, 8px); font: inherit; }
     input[type="checkbox"] { accent-color: var(--primary-color); }
     .section-heading { display: flex; align-items: center; gap: 12px; }
