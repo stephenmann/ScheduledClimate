@@ -1,10 +1,11 @@
-"""Daily scheduling for Scheduled Climate."""
+"""Schedule helper integration for Scheduled Climate."""
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
-from datetime import UTC, date, datetime, time, timedelta, tzinfo
-from typing import TypedDict
+from datetime import datetime
+from typing import Any, TypedDict
 
 from homeassistant.components.climate import (
     ATTR_HVAC_MODE,
@@ -15,31 +16,55 @@ from homeassistant.components.climate import (
 from homeassistant.components.climate import (
     DOMAIN as CLIMATE_DOMAIN,
 )
+from homeassistant.components.schedule import ATTR_NEXT_EVENT
+from homeassistant.components.schedule import DOMAIN as SCHEDULE_DOMAIN
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     ATTR_ENTITY_ID,
     STATE_UNAVAILABLE,
     STATE_UNKNOWN,
 )
-from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.event import async_track_time_change
+from homeassistant.core import (
+    Event,
+    EventStateChangedData,
+    HomeAssistant,
+    State,
+    callback,
+)
+from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import issue_registry as ir
+from homeassistant.helpers.event import async_track_state_change_event
 from homeassistant.helpers.storage import Store
-from homeassistant.util import dt as dt_util
 
+from .block import ScheduleBlock, build_plan
 from .const import (
+    CONF_APPLY_ON_START,
     CONF_DEFAULT_HVAC_MODE,
-    CONF_OFF_TIME,
-    CONF_ON_TIME,
+    CONF_LEGACY_OFF_TIME,
+    CONF_LEGACY_ON_TIME,
+    CONF_OFF_BEHAVIOR,
     CONF_SCHEDULE_ENABLED,
+    CONF_SCHEDULE_ENTITY_ID,
     CONF_TARGET_ENTITY_ID,
+    DEFAULT_APPLY_ON_START,
     DEFAULT_HVAC_MODE,
+    DEFAULT_OFF_BEHAVIOR,
     DEFAULT_SCHEDULE_ENABLED,
+    DOMAIN,
+    ISSUE_BLOCK_UNSUPPORTED,
+    ISSUE_SCHEDULE_MISSING,
+    ISSUE_SCHEDULE_NOT_LINKED,
+    OFF_BEHAVIOR_IGNORE,
 )
 from .timer import TimerManager
+
+_LOGGER = logging.getLogger(__name__)
 
 STORAGE_VERSION = 1
 STORAGE_KEY = "scheduled_climate"
 STORAGE_LAST_ACTIVE_HVAC_MODE = "last_active_hvac_mode"
+
+UNUSABLE_STATES = frozenset({STATE_UNAVAILABLE, STATE_UNKNOWN})
 
 
 class ScheduleStorageData(TypedDict, total=False):
@@ -48,15 +73,28 @@ class ScheduleStorageData(TypedDict, total=False):
     last_active_hvac_mode: str
 
 
+class _Unset:
+    """Sentinel for a block that has not been observed yet."""
+
+
+_UNSET = _Unset()
+
+AppliedBlock = ScheduleBlock | None | _Unset
+
+
 class ScheduleManager:
-    """Own daily schedule callbacks for one config entry."""
+    """Apply a linked schedule helper to the target climate entity."""
 
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
         """Initialize the schedule manager."""
         self.hass = hass
         self.entry = entry
         self._unsubscribers: list[Callable[[], None]] = []
+        self._listeners: list[Callable[[], None]] = []
         self._last_active_hvac_mode: HVACMode | None = None
+        self._last_applied: AppliedBlock = _UNSET
+        self._pending: AppliedBlock = _UNSET
+        self._issues: tuple[str, ...] = ()
         self._store = Store[ScheduleStorageData](
             hass,
             STORAGE_VERSION,
@@ -70,7 +108,7 @@ class ScheduleManager:
         )
 
     async def async_initialize(self) -> None:
-        """Restore runtime state and register configured callbacks."""
+        """Restore runtime state and start following the linked schedule."""
         stored = await self._store.async_load()
         if stored and (mode := stored.get(STORAGE_LAST_ACTIVE_HVAC_MODE)):
             try:
@@ -79,183 +117,334 @@ class ScheduleManager:
                 restored_mode = None
             if restored_mode is not HVACMode.OFF:
                 self._last_active_hvac_mode = restored_mode
+
         self.async_setup()
+
+        if self.enabled and self.apply_on_start:
+            await self._async_handle_block(self.active_block)
+        else:
+            self._last_applied = self.active_block
+
+        self._async_update_issues()
         await self.timer.async_initialize()
 
     @property
+    def target_entity_id(self) -> str:
+        """Return the wrapped climate entity id."""
+        return self.entry.data[CONF_TARGET_ENTITY_ID]
+
+    @property
+    def schedule_entity_id(self) -> str | None:
+        """Return the linked schedule helper entity id."""
+        return self.entry.options.get(CONF_SCHEDULE_ENTITY_ID) or None
+
+    @property
     def enabled(self) -> bool:
-        """Return whether daily scheduling is enabled."""
-        return self.entry.options.get(CONF_SCHEDULE_ENABLED, DEFAULT_SCHEDULE_ENABLED)
+        """Return whether the linked schedule is applied to the target."""
+        if self.schedule_entity_id is None:
+            return False
+        return bool(
+            self.entry.options.get(CONF_SCHEDULE_ENABLED, DEFAULT_SCHEDULE_ENABLED)
+        )
 
     @property
-    def on_time(self) -> time | None:
-        """Return the configured daily on time."""
-        return self._option_time(CONF_ON_TIME)
+    def off_behavior(self) -> str:
+        """Return what happens when no schedule block is active."""
+        return self.entry.options.get(CONF_OFF_BEHAVIOR, DEFAULT_OFF_BEHAVIOR)
 
     @property
-    def off_time(self) -> time | None:
-        """Return the configured daily off time."""
-        return self._option_time(CONF_OFF_TIME)
+    def apply_on_start(self) -> bool:
+        """Return whether the active block is applied during setup."""
+        return bool(self.entry.options.get(CONF_APPLY_ON_START, DEFAULT_APPLY_ON_START))
 
     @property
-    def next_action(self) -> tuple[str, datetime] | None:
-        """Return the next configured schedule action and local timestamp."""
-        if not self.enabled:
+    def legacy_schedule(self) -> dict[str, str] | None:
+        """Return the pre-migration daily times still waiting to be converted."""
+        on_time = self.entry.options.get(CONF_LEGACY_ON_TIME)
+        off_time = self.entry.options.get(CONF_LEGACY_OFF_TIME)
+        if not on_time and not off_time:
             return None
+        return {"on_time": on_time or "", "off_time": off_time or ""}
 
-        now = dt_util.now()
-        candidates = [
-            (action, self._next_occurrence(now, action_time))
-            for action, action_time in (("on", self.on_time), ("off", self.off_time))
-            if action_time is not None
-        ]
-        return min(candidates, key=lambda item: item[1]) if candidates else None
+    @property
+    def issues(self) -> tuple[str, ...]:
+        """Return the problems found while applying the last block."""
+        return self._issues
+
+    @property
+    def schedule_state(self) -> State | None:
+        """Return the linked schedule helper state."""
+        entity_id = self.schedule_entity_id
+        return self.hass.states.get(entity_id) if entity_id else None
+
+    @property
+    def active_block(self) -> ScheduleBlock | None:
+        """Return the currently active schedule block."""
+        return ScheduleBlock.from_state(self.schedule_state)
+
+    @property
+    def next_event(self) -> datetime | None:
+        """Return the next schedule boundary reported by the helper."""
+        state = self.schedule_state
+        if state is None:
+            return None
+        value = state.attributes.get(ATTR_NEXT_EVENT)
+        return value if isinstance(value, datetime) else None
+
+    @property
+    def schedule_id(self) -> str | None:
+        """Return the storage collection id of the linked schedule helper."""
+        entity_id = self.schedule_entity_id
+        if entity_id is None:
+            return None
+        registry_entry = er.async_get(self.hass).async_get(entity_id)
+        return registry_entry.unique_id if registry_entry else None
+
+    @callback
+    def async_add_listener(self, listener: Callable[[], None]) -> Callable[[], None]:
+        """Register a callback fired when the schedule view changes."""
+        self._listeners.append(listener)
+
+        @callback
+        def remove_listener() -> None:
+            """Remove the registered callback."""
+            if listener in self._listeners:
+                self._listeners.remove(listener)
+
+        return remove_listener
 
     @callback
     def async_setup(self) -> None:
-        """Register configured daily callbacks."""
+        """Track the linked schedule helper and the target availability."""
         self._cancel_schedule_callbacks()
-        if not self.enabled:
+        entity_id = self.schedule_entity_id
+        if entity_id is None:
             return
 
-        if on_time := self.on_time:
-            self._unsubscribers.append(
-                async_track_time_change(
-                    self.hass,
-                    self.async_handle_on,
-                    hour=on_time.hour,
-                    minute=on_time.minute,
-                    second=on_time.second,
-                )
+        self._unsubscribers.append(
+            async_track_state_change_event(
+                self.hass, [entity_id], self._async_schedule_changed
             )
-
-        if off_time := self.off_time:
-            self._unsubscribers.append(
-                async_track_time_change(
-                    self.hass,
-                    self.async_handle_off,
-                    hour=off_time.hour,
-                    minute=off_time.minute,
-                    second=off_time.second,
-                )
+        )
+        self._unsubscribers.append(
+            async_track_state_change_event(
+                self.hass, [self.target_entity_id], self._async_target_changed
             )
+        )
 
     @callback
     def async_shutdown(self) -> None:
         """Cancel all registered runtime callbacks."""
         self._cancel_schedule_callbacks()
+        self._listeners.clear()
+        for issue in (
+            ISSUE_SCHEDULE_MISSING,
+            ISSUE_SCHEDULE_NOT_LINKED,
+            ISSUE_BLOCK_UNSUPPORTED,
+        ):
+            ir.async_delete_issue(self.hass, DOMAIN, self._issue_id(issue))
         self.timer.async_shutdown()
 
     @callback
     def _cancel_schedule_callbacks(self) -> None:
-        """Cancel registered daily schedule callbacks."""
+        """Cancel registered schedule callbacks."""
         while self._unsubscribers:
             self._unsubscribers.pop()()
 
-    async def async_handle_on(self, _now: datetime) -> None:
-        """Run the daily on action."""
-        state = self.hass.states.get(self.entry.data[CONF_TARGET_ENTITY_ID])
-        if state is None or state.state in {STATE_UNAVAILABLE, STATE_UNKNOWN}:
+    async def _async_schedule_changed(
+        self, event: Event[EventStateChangedData]
+    ) -> None:
+        """Apply the schedule helper state to the target."""
+        await self._async_handle_block(
+            ScheduleBlock.from_state(event.data["new_state"])
+        )
+        self._async_update_issues()
+        self._notify_listeners()
+
+    async def _async_target_changed(self, event: Event[EventStateChangedData]) -> None:
+        """Apply a deferred block once the target becomes usable again."""
+        if isinstance(self._pending, _Unset):
+            return
+        new_state = event.data["new_state"]
+        if new_state is None or new_state.state in UNUSABLE_STATES:
             return
 
-        supported_modes = [
-            HVACMode(mode) for mode in state.attributes.get(ATTR_HVAC_MODES, [])
-        ]
-        configured_default = HVACMode(
-            self.entry.options.get(CONF_DEFAULT_HVAC_MODE, DEFAULT_HVAC_MODE)
-        )
-        candidates = (self._last_active_hvac_mode, configured_default)
-        mode = next(
+        pending = self._pending
+        self._pending = _UNSET
+        await self._async_apply(pending)
+
+    async def _async_handle_block(self, block: ScheduleBlock | None) -> None:
+        """Apply a block when it differs from the last applied one."""
+        if not self.enabled:
+            return
+        if not isinstance(self._last_applied, _Unset) and block == self._last_applied:
+            return
+
+        self._last_applied = block
+        await self._async_apply(block)
+
+    async def _async_apply(self, block: ScheduleBlock | None) -> None:
+        """Send the climate commands for a block to the target entity."""
+        state = self.hass.states.get(self.target_entity_id)
+        if state is None or state.state in UNUSABLE_STATES:
+            _LOGGER.debug(
+                "Deferring the schedule block for %s until it is available",
+                self.target_entity_id,
+            )
+            self._pending = block
+            return
+
+        if block is None:
+            self._issues = ()
+            await self._async_apply_off(state)
+            return
+
+        plan = build_plan(block, state, self._fallback_modes())
+        self._issues = plan.issues
+        if plan.issues:
+            _LOGGER.warning(
+                "The schedule block for %s could not be fully applied: %s",
+                self.target_entity_id,
+                "; ".join(plan.issues),
+            )
+
+        for command in plan.commands:
+            await self._async_call(command.service, command.data)
+
+        requested_mode = next(
             (
-                candidate
-                for candidate in candidates
-                if candidate is not None
-                and candidate is not HVACMode.OFF
-                and candidate in supported_modes
+                command.data[ATTR_HVAC_MODE]
+                for command in plan.commands
+                if command.service == SERVICE_SET_HVAC_MODE
             ),
-            next((item for item in supported_modes if item is not HVACMode.OFF), None),
+            None,
         )
-        if mode is not None:
-            await self._async_set_hvac_mode(mode)
+        if requested_mode is not None and requested_mode != HVACMode.OFF:
+            await self._async_store_active_mode(HVACMode(requested_mode))
+
+    async def _async_apply_off(self, state: State) -> None:
+        """Turn the target off when no schedule block is active."""
+        if self.off_behavior == OFF_BEHAVIOR_IGNORE:
+            return
+        await self.async_handle_off_state(state)
+
+    async def async_handle_on(self, _now: datetime) -> None:
+        """Turn the target on, used by the manual timer."""
+        state = self.hass.states.get(self.target_entity_id)
+        if state is None or state.state in UNUSABLE_STATES:
+            return
+
+        plan = build_plan(ScheduleBlock(), state, self._fallback_modes())
+        for command in plan.commands:
+            await self._async_call(command.service, command.data)
 
     async def async_handle_off(self, _now: datetime) -> None:
-        """Run the daily off action."""
-        state = self.hass.states.get(self.entry.data[CONF_TARGET_ENTITY_ID])
-        if state is None or state.state in {STATE_UNAVAILABLE, STATE_UNKNOWN}:
+        """Turn the target off, used by the manual timer."""
+        state = self.hass.states.get(self.target_entity_id)
+        if state is None or state.state in UNUSABLE_STATES:
             return
+        await self.async_handle_off_state(state)
 
+    async def async_handle_off_state(self, state: State) -> None:
+        """Remember the active mode and turn the target off."""
+        await self._async_remember_active_mode(state)
+        if HVACMode.OFF in (state.attributes.get(ATTR_HVAC_MODES) or []):
+            await self._async_call(
+                SERVICE_SET_HVAC_MODE, {ATTR_HVAC_MODE: HVACMode.OFF}
+            )
+
+    def _fallback_modes(self) -> tuple[str, ...]:
+        """Return the preferred HVAC modes when a block does not specify one."""
+        configured = self.entry.options.get(CONF_DEFAULT_HVAC_MODE, DEFAULT_HVAC_MODE)
+        candidates = (self._last_active_hvac_mode, configured)
+        return tuple(str(mode) for mode in candidates if mode is not None)
+
+    async def _async_remember_active_mode(self, state: State) -> None:
+        """Store the current HVAC mode so it can be restored later."""
         try:
             current_mode = HVACMode(state.state)
         except ValueError:
-            current_mode = None
-        if current_mode is not None and current_mode is not HVACMode.OFF:
-            self._last_active_hvac_mode = current_mode
-            await self._store.async_save(
-                {STORAGE_LAST_ACTIVE_HVAC_MODE: current_mode.value}
-            )
+            return
+        if current_mode is not HVACMode.OFF:
+            await self._async_store_active_mode(current_mode)
 
-        if HVACMode.OFF in [
-            HVACMode(mode) for mode in state.attributes.get(ATTR_HVAC_MODES, [])
-        ]:
-            await self._async_set_hvac_mode(HVACMode.OFF)
+    async def _async_store_active_mode(self, mode: HVACMode) -> None:
+        """Persist the last known active HVAC mode."""
+        if mode is self._last_active_hvac_mode:
+            return
+        self._last_active_hvac_mode = mode
+        await self._store.async_save({STORAGE_LAST_ACTIVE_HVAC_MODE: mode.value})
 
-    async def _async_set_hvac_mode(self, mode: HVACMode) -> None:
-        """Set the target entity HVAC mode."""
+    async def _async_call(self, service: str, data: dict[str, Any]) -> None:
+        """Call a climate service on the target entity."""
         await self.hass.services.async_call(
             CLIMATE_DOMAIN,
-            SERVICE_SET_HVAC_MODE,
-            {
-                ATTR_ENTITY_ID: self.entry.data[CONF_TARGET_ENTITY_ID],
-                ATTR_HVAC_MODE: mode,
-            },
+            service,
+            {ATTR_ENTITY_ID: self.target_entity_id, **data},
             blocking=True,
         )
 
-    def _option_time(self, key: str) -> time | None:
-        """Parse an optional configured time."""
-        value = self.entry.options.get(key)
-        return dt_util.parse_time(value) if value else None
+    def _issue_id(self, issue: str) -> str:
+        """Return the repair issue id for this config entry."""
+        return f"{issue}_{self.entry.entry_id}"
 
-    @staticmethod
-    def _next_occurrence(now: datetime, action_time: time) -> datetime:
-        """Return the next local occurrence of a wall-clock time."""
-        if now.tzinfo is None:
-            raise ValueError("now must be timezone-aware")
+    @callback
+    def _async_update_issues(self) -> None:
+        """Create or resolve repair issues for the current configuration."""
+        placeholders = {"name": self.entry.title}
 
-        now_utc = now.astimezone(UTC)
-        for day_offset in range(3):
-            candidate_date = now.date() + timedelta(days=day_offset)
-            candidates = ScheduleManager._valid_occurrences(
-                candidate_date, action_time, now.tzinfo
-            )
-            if future := [
-                item for item in candidates if item.astimezone(UTC) > now_utc
-            ]:
-                return min(future, key=lambda item: item.astimezone(UTC))
+        self._async_set_issue(
+            ISSUE_SCHEDULE_NOT_LINKED,
+            self.schedule_entity_id is None
+            and any(
+                self.entry.options.get(key)
+                for key in (CONF_LEGACY_ON_TIME, CONF_LEGACY_OFF_TIME)
+            ),
+            placeholders,
+        )
+        self._async_set_issue(
+            ISSUE_SCHEDULE_MISSING,
+            self.schedule_entity_id is not None and self.schedule_state is None,
+            {**placeholders, "entity_id": self.schedule_entity_id or ""},
+        )
+        self._async_set_issue(
+            ISSUE_BLOCK_UNSUPPORTED,
+            bool(self._issues),
+            {**placeholders, "issues": "; ".join(self._issues)},
+        )
 
-        raise RuntimeError("Unable to calculate the next schedule occurrence")
+    @callback
+    def _async_set_issue(
+        self, issue: str, active: bool, placeholders: dict[str, str]
+    ) -> None:
+        """Create or delete one repair issue."""
+        issue_id = self._issue_id(issue)
+        if not active:
+            ir.async_delete_issue(self.hass, DOMAIN, issue_id)
+            return
 
-    @staticmethod
-    def _valid_occurrences(
-        candidate_date: date, action_time: time, timezone: tzinfo
-    ) -> list[datetime]:
-        """Return valid occurrences, including both sides of a repeated time."""
-        occurrences: list[datetime] = []
-        seen_utc: set[datetime] = set()
-        for fold in (0, 1):
-            candidate = datetime.combine(
-                candidate_date,
-                action_time,
-                tzinfo=timezone,
-            ).replace(fold=fold)
-            candidate_utc = candidate.astimezone(UTC)
-            round_trip = candidate_utc.astimezone(timezone)
-            if (
-                round_trip.date() != candidate_date
-                or round_trip.time().replace(tzinfo=None) != action_time
-                or candidate_utc in seen_utc
-            ):
-                continue
-            seen_utc.add(candidate_utc)
-            occurrences.append(candidate)
-        return occurrences
+        ir.async_create_issue(
+            self.hass,
+            DOMAIN,
+            issue_id,
+            is_fixable=False,
+            severity=ir.IssueSeverity.WARNING,
+            translation_key=issue,
+            translation_placeholders=placeholders,
+        )
+
+    @callback
+    def _notify_listeners(self) -> None:
+        """Notify registered listeners that the schedule view changed."""
+        for listener in list(self._listeners):
+            listener()
+
+
+@callback
+def async_resolve_schedule_entity_id(
+    hass: HomeAssistant, schedule_id: str
+) -> str | None:
+    """Return the entity id for a schedule helper storage collection id."""
+    return er.async_get(hass).async_get_entity_id(
+        SCHEDULE_DOMAIN, SCHEDULE_DOMAIN, schedule_id
+    )

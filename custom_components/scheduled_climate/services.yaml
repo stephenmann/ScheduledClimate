@@ -36,28 +36,17 @@ cancel_timer:
       integration: scheduled_climate
       domain: climate
 
-update_schedule:
-  name: Update daily schedule
-  description: Updates the enabled state and daily on and off times atomically.
+link_schedule:
+  name: Link schedule
+  description: Links a schedule helper to the climate entity, or unlinks it when no schedule is given.
   target:
     entity:
       integration: scheduled_climate
       domain: climate
   fields:
-    schedule_enabled:
-      name: Enabled
-      required: true
+    schedule_id:
+      name: Schedule ID
+      description: Storage ID of the schedule helper. Leave empty to unlink the current schedule.
+      required: false
       selector:
-        boolean:
-    on_time:
-      name: On time
-      description: Daily time to turn the climate entity on, or null to clear it.
-      required: true
-      selector:
-        time:
-    off_time:
-      name: Off time
-      description: Daily time to turn the climate entity off, or null to clear it.
-      required: true
-      selector:
-        time:
+        text:

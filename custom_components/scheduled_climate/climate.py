@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import time, timedelta
+from datetime import timedelta
 from typing import TYPE_CHECKING, Any
 
 import voluptuous as vol
@@ -66,32 +66,36 @@ from homeassistant.helpers.event import (
 )
 
 from .const import (
+    ATTR_ACTIVE_SCHEDULE_BLOCK,
     ATTR_DURATION,
+    ATTR_LEGACY_SCHEDULE,
     ATTR_MAX_HUMIDITY,
     ATTR_MAX_TEMP,
     ATTR_MIN_HUMIDITY,
     ATTR_MIN_TEMP,
-    ATTR_NEXT_SCHEDULE_ACTION,
-    ATTR_NEXT_SCHEDULE_TIME,
+    ATTR_NEXT_SCHEDULE_EVENT,
+    ATTR_SCHEDULE_ACTIVE,
     ATTR_SCHEDULE_ENABLED,
-    ATTR_SCHEDULE_OFF_TIME,
-    ATTR_SCHEDULE_ON_TIME,
+    ATTR_SCHEDULE_ENTITY_ID,
+    ATTR_SCHEDULE_ID,
+    ATTR_SCHEDULE_ISSUES,
     ATTR_TARGET_HUMIDITY_STEP,
     ATTR_TARGET_TEMP_STEP,
     ATTR_TEMPERATURE_UNIT,
     ATTR_TIMER_ACTION,
     ATTR_TIMER_DEADLINE,
-    CONF_OFF_TIME,
-    CONF_ON_TIME,
+    CONF_LEGACY_OFF_TIME,
+    CONF_LEGACY_ON_TIME,
     CONF_SCHEDULE_ENABLED,
+    CONF_SCHEDULE_ENTITY_ID,
     CONF_TARGET_ENTITY_ID,
     DOMAIN,
     SERVICE_CANCEL_TIMER,
+    SERVICE_LINK_SCHEDULE,
     SERVICE_START_OFF_TIMER,
     SERVICE_START_ON_TIMER,
-    SERVICE_UPDATE_SCHEDULE,
 )
-from .schedule import ScheduleManager
+from .schedule import ScheduleManager, async_resolve_schedule_entity_id
 
 if TYPE_CHECKING:
     from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
@@ -151,13 +155,9 @@ async def async_setup_entry(
         "async_cancel_timer",
     )
     platform.async_register_entity_service(
-        SERVICE_UPDATE_SCHEDULE,
-        {
-            vol.Required(CONF_SCHEDULE_ENABLED): cv.boolean,
-            vol.Required(CONF_ON_TIME): vol.Any(None, cv.time),
-            vol.Required(CONF_OFF_TIME): vol.Any(None, cv.time),
-        },
-        "async_update_schedule",
+        SERVICE_LINK_SCHEDULE,
+        {vol.Optional(ATTR_SCHEDULE_ID): vol.Any(None, cv.string)},
+        "async_link_schedule",
     )
 
 
@@ -203,13 +203,16 @@ class ScheduledClimateEntity(ClimateEntity):
         self.async_on_remove(self._unsubscribe_target_state)
         self.async_on_remove(
             self._schedule_manager.timer.async_add_listener(
-                self._async_timer_state_changed
+                self._async_manager_state_changed
             )
+        )
+        self.async_on_remove(
+            self._schedule_manager.async_add_listener(self._async_manager_state_changed)
         )
 
     @callback
-    def _async_timer_state_changed(self) -> None:
-        """Write state after the active timer changes."""
+    def _async_manager_state_changed(self) -> None:
+        """Write state after the schedule or timer view changes."""
         self.async_write_ha_state()
 
     @callback
@@ -291,28 +294,23 @@ class ScheduledClimateEntity(ClimateEntity):
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return schedule diagnostics."""
-        next_action = self._schedule_manager.next_action
+        manager = self._schedule_manager
+        active_block = manager.active_block
+        next_event = manager.next_event
         return {
-            ATTR_SCHEDULE_ENABLED: self._schedule_manager.enabled,
-            ATTR_SCHEDULE_ON_TIME: (
-                self._schedule_manager.on_time.isoformat()
-                if self._schedule_manager.on_time
-                else None
+            ATTR_SCHEDULE_ENABLED: manager.enabled,
+            ATTR_SCHEDULE_ENTITY_ID: manager.schedule_entity_id,
+            ATTR_SCHEDULE_ID: manager.schedule_id,
+            ATTR_SCHEDULE_ACTIVE: active_block is not None,
+            ATTR_ACTIVE_SCHEDULE_BLOCK: (
+                active_block.as_dict() if active_block else None
             ),
-            ATTR_SCHEDULE_OFF_TIME: (
-                self._schedule_manager.off_time.isoformat()
-                if self._schedule_manager.off_time
-                else None
-            ),
-            ATTR_NEXT_SCHEDULE_ACTION: next_action[0] if next_action else None,
-            ATTR_NEXT_SCHEDULE_TIME: (
-                next_action[1].isoformat() if next_action else None
-            ),
-            ATTR_TIMER_ACTION: self._schedule_manager.timer.action,
+            ATTR_NEXT_SCHEDULE_EVENT: next_event.isoformat() if next_event else None,
+            ATTR_SCHEDULE_ISSUES: list(manager.issues),
+            ATTR_LEGACY_SCHEDULE: manager.legacy_schedule,
+            ATTR_TIMER_ACTION: manager.timer.action,
             ATTR_TIMER_DEADLINE: (
-                self._schedule_manager.timer.deadline.isoformat()
-                if self._schedule_manager.timer.deadline
-                else None
+                manager.timer.deadline.isoformat() if manager.timer.deadline else None
             ),
         }
 
@@ -328,36 +326,29 @@ class ScheduledClimateEntity(ClimateEntity):
         """Cancel the active timer."""
         await self._schedule_manager.timer.async_cancel()
 
-    async def async_update_schedule(
-        self,
-        schedule_enabled: bool,
-        on_time: time | None,
-        off_time: time | None,
-    ) -> None:
-        """Persist an atomic daily schedule update."""
-        if not schedule_enabled:
-            on_time = None
-            off_time = None
-        if schedule_enabled and on_time is None and off_time is None:
-            raise ServiceValidationError(
-                "An enabled schedule requires an on time or off time"
-            )
-        if on_time is not None and on_time == off_time:
-            raise ServiceValidationError("On and off times must be different")
-
+    async def async_link_schedule(self, schedule_id: str | None = None) -> None:
+        """Link, or unlink, the schedule helper that drives this entity."""
         entry = self.hass.config_entries.async_get_entry(self._attr_unique_id)
         if entry is None:
             raise ServiceValidationError("Config entry is no longer available")
 
-        options = {
-            **entry.options,
-            CONF_SCHEDULE_ENABLED: schedule_enabled,
-        }
-        for key, value in ((CONF_ON_TIME, on_time), (CONF_OFF_TIME, off_time)):
-            if value is None:
-                options.pop(key, None)
-            else:
-                options[key] = value.isoformat()
+        options = dict(entry.options)
+        if schedule_id:
+            schedule_entity_id = async_resolve_schedule_entity_id(
+                self.hass, schedule_id
+            )
+            if schedule_entity_id is None:
+                raise ServiceValidationError(
+                    f"No schedule helper found for '{schedule_id}'"
+                )
+            options[CONF_SCHEDULE_ENTITY_ID] = schedule_entity_id
+            options[CONF_SCHEDULE_ENABLED] = True
+            options.pop(CONF_LEGACY_ON_TIME, None)
+            options.pop(CONF_LEGACY_OFF_TIME, None)
+        else:
+            options.pop(CONF_SCHEDULE_ENTITY_ID, None)
+            options[CONF_SCHEDULE_ENABLED] = False
+
         self.hass.config_entries.async_update_entry(entry, options=options)
 
     @property

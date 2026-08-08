@@ -1,6 +1,11 @@
 import { LitElement, css, html, nothing } from "lit";
-import type { HomeAssistant, ScheduledClimateCardConfig } from "./types";
-import { DEFAULT_PRESETS } from "./types";
+import type {
+  HomeAssistant,
+  ScheduleDay,
+  ScheduledClimateCardConfig,
+} from "./types";
+import { DEFAULT_PRESETS, SCHEDULE_DAYS } from "./types";
+import { DAY_LABELS } from "./schedule";
 
 export class ScheduledClimateCardEditor extends LitElement {
   static properties = {
@@ -91,6 +96,36 @@ export class ScheduledClimateCardEditor extends LitElement {
               )}
           />
           Show schedule controls
+        </label>
+        <label class="toggle">
+          <input
+            type="checkbox"
+            .checked=${this._config.schedule_editable !== false}
+            @change=${(event: Event) =>
+              this._setValue(
+                "schedule_editable",
+                (event.target as HTMLInputElement).checked,
+              )}
+          />
+          Allow editing the schedule
+        </label>
+        <label>
+          Day shown first
+          <select
+            name="default_schedule_day"
+            .value=${this._config.default_schedule_day ?? ""}
+            @change=${(event: Event) =>
+              this._setValue(
+                "default_schedule_day",
+                ((event.target as HTMLSelectElement).value as ScheduleDay) ||
+                  undefined,
+              )}
+          >
+            <option value="">Today</option>
+            ${SCHEDULE_DAYS.map(
+              (day) => html`<option value=${day}>${DAY_LABELS[day]}</option>`,
+            )}
+          </select>
         </label>
         <label class="toggle">
           <input

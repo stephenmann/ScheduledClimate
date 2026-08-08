@@ -1,6 +1,6 @@
 # Scheduled Climate
 
-Scheduled Climate is a Home Assistant custom integration that wraps an existing climate entity with a recurring daily schedule, persistent one-shot timers, and a matching dashboard card.
+Scheduled Climate is a Home Assistant custom integration that wraps an existing climate entity with a weekly schedule built on the Home Assistant schedule helper, persistent one-shot timers, and a matching dashboard card.
 
 Requires Home Assistant 2026.1 or newer. Local integration branding is available on Home Assistant 2026.3 or newer.
 
@@ -27,20 +27,34 @@ timer_presets:
   - 60
   - 120
 show_schedule: true
+schedule_editable: true
+default_schedule_day: monday
 show_timer: true
 ```
 
 The card derives all schedule and timer state from the wrapper entity. It displays only climate controls supported by that entity, including HVAC mode, target temperature, preset, fan, swing, and humidity controls where available.
 
-The `layout` option accepts `standard` (the default) or `compact`. Compact layout removes the circular temperature dial while retaining touch-friendly temperature and HVAC controls. Preset and climate options, the daily schedule, and the timer can each be collapsed; their states are retained per entity in the current browser.
+The `layout` option accepts `standard` (the default) or `compact`. Compact layout removes the circular temperature dial while retaining touch-friendly temperature and HVAC controls. Preset and climate options, the schedule, and the timer can each be collapsed; their states are retained per entity in the current browser.
 
-## Daily Schedule
+Set `schedule_editable: false` to render the schedule read-only. Editing is always read-only for non-administrators, because the schedule helper websocket API requires administrator rights. `default_schedule_day` selects the day shown first; the current day is used when it is omitted.
 
-Configure a daily on time, off time, or both from the integration options or card. The on action restores the most recently active supported HVAC mode, falling back to the configured default. The schedule uses Home Assistant local time and handles daylight-saving gaps and repeated times.
+## Weekly Schedule
 
-Disabling the schedule immediately cancels its callbacks and clears both configured action times. Set new times before enabling it again.
+Each wrapper is linked to a Home Assistant **schedule** helper. Every time block in that helper can carry climate settings as block data:
 
-Day-of-week selection is planned but is not available yet.
+| Key | Meaning |
+| --- | --- |
+| `hvac_mode` | HVAC mode to select while the block is active |
+| `temperature` | Single target temperature |
+| `target_temp_low` / `target_temp_high` | Target temperature range (set both) |
+| `fan_mode` | Fan mode |
+| `humidity` | Target humidity |
+
+Link a helper from the integration options, or create and link one directly from the card. The HVAC mode is always applied before setpoints. When a block omits the mode, the most recently active supported mode is restored, falling back to the configured default. Outside every block the wrapper turns the target off, or leaves it untouched when **Off behavior** is set to `ignore`.
+
+Blocks that request a setting the target entity cannot accept are applied as far as possible; the unsupported parts are skipped, logged, and surfaced as a repair issue.
+
+Upgrading from a release that used a single daily on and off time keeps those times visible on the wrapper entity and raises a repair issue. Use the card's **Create schedule** button to convert them into a weekly schedule, or link an existing helper from the options.
 
 ## Timers
 
@@ -51,9 +65,9 @@ Services:
 - `scheduled_climate.start_on_timer`
 - `scheduled_climate.start_off_timer`
 - `scheduled_climate.cancel_timer`
-- `scheduled_climate.update_schedule`
+- `scheduled_climate.link_schedule`
 
-Timer start services require a positive `duration`. Schedule updates require `schedule_enabled`, `on_time`, and `off_time`; use `null` to clear either time.
+Timer start services require a positive `duration`. `link_schedule` takes the storage `schedule_id` of a schedule helper and enables the schedule; call it without an id to unlink the current helper.
 
 ## Troubleshooting
 

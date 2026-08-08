@@ -1,14 +1,55 @@
 """Scheduled Climate integration."""
 
+import logging
+
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 
-from .const import DOMAIN
+from .const import (
+    CONF_APPLY_ON_START,
+    CONF_LEGACY_OFF_TIME,
+    CONF_LEGACY_ON_TIME,
+    CONF_OFF_BEHAVIOR,
+    CONF_SCHEDULE_ENABLED,
+    DEFAULT_APPLY_ON_START,
+    DEFAULT_OFF_BEHAVIOR,
+    DOMAIN,
+)
 from .frontend import async_register_frontend
 from .schedule import ScheduleManager
 
+_LOGGER = logging.getLogger(__name__)
+
 PLATFORMS = (Platform.CLIMATE,)
+
+LEGACY_ON_TIME = "on_time"
+LEGACY_OFF_TIME = "off_time"
+
+
+async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Migrate a config entry to the schedule helper model."""
+    if entry.version > 2:
+        return False
+
+    if entry.version == 1:
+        options = dict(entry.options)
+        on_time = options.pop(LEGACY_ON_TIME, None)
+        off_time = options.pop(LEGACY_OFF_TIME, None)
+        if on_time:
+            options[CONF_LEGACY_ON_TIME] = on_time
+        if off_time:
+            options[CONF_LEGACY_OFF_TIME] = off_time
+        options[CONF_SCHEDULE_ENABLED] = False
+        options.setdefault(CONF_OFF_BEHAVIOR, DEFAULT_OFF_BEHAVIOR)
+        options.setdefault(CONF_APPLY_ON_START, DEFAULT_APPLY_ON_START)
+        hass.config_entries.async_update_entry(entry, options=options, version=2)
+        _LOGGER.info(
+            "Migrated %s to the schedule helper model; link a schedule to resume",
+            entry.title,
+        )
+
+    return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

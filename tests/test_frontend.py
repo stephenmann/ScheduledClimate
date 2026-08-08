@@ -47,9 +47,7 @@ async def test_register_frontend_once_during_concurrent_entry_setup() -> None:
 
     hass = Mock()
     hass.data = {}
-    hass.http.async_register_static_paths = AsyncMock(
-        side_effect=register_static_paths
-    )
+    hass.http.async_register_static_paths = AsyncMock(side_effect=register_static_paths)
 
     registrations = [
         asyncio.create_task(async_register_frontend(hass)) for _ in range(3)
